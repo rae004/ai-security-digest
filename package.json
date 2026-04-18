@@ -1,0 +1,32 @@
+{
+  "name": "ai-security-digest",
+  "version": "0.1.0",
+  "bin": {
+    "ai-security-digest": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/jest": "^30",
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
+    "aws-cdk": "2.1118.2",
+    "eslint": "^10.2.1",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.248.0",
+    "cdk-nag": "^2.37.55",
+    "constructs": "^10.5.0"
+  }
+}
