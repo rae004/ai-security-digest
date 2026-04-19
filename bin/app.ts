@@ -4,6 +4,7 @@ import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
 import { IngestionStack } from '../lib/stacks/ingestion-stack';
+import { ProcessorStack } from '../lib/stacks/processor-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
 
 const app = new cdk.App();
@@ -26,6 +27,17 @@ const ingestionStack = new IngestionStack(app, 'AiSecurityDigestIngestionStack',
   rawArticlesBucket: storageStack.rawArticlesBucket,
 });
 ingestionStack.addDependency(storageStack);
+
+const processorStack = new ProcessorStack(app, 'AiSecurityDigestProcessorStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — Bedrock processor Lambda',
+  rawArticlesBucket: storageStack.rawArticlesBucket,
+  processedArticlesBucket: storageStack.processedArticlesBucket,
+});
+processorStack.addDependency(storageStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
