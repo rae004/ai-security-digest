@@ -28,7 +28,7 @@ async function loadRawArticles(s3Keys: string[]): Promise<RawArticle[]> {
   return all;
 }
 
-function deduplicateById(articles: RawArticle[]): RawArticle[] {
+export function deduplicateById(articles: RawArticle[]): RawArticle[] {
   const seen = new Set<string>();
   return articles.filter((a) => {
     if (seen.has(a.id)) return false;

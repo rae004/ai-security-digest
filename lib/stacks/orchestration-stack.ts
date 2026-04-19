@@ -300,6 +300,10 @@ export class OrchestrationStack extends cdk.Stack {
           reason:
             'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
         },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+        },
       ],
       true,
     );
@@ -316,6 +320,10 @@ export class OrchestrationStack extends cdk.Stack {
           reason:
             'SES identity wildcard is required since the verified sender address is configured post-deployment via SSM.',
         },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+        },
       ],
       true,
     );
@@ -327,6 +335,11 @@ export class OrchestrationStack extends cdk.Stack {
           id: 'AwsSolutions-IAM5',
           reason:
             'Step Functions execution role uses lambda:InvokeFunction on specific function ARNs; the :* suffix for qualified versions is a CDK default.',
+        },
+        {
+          id: 'AwsSolutions-SF1',
+          reason:
+            'Step Functions logs ERROR-level events; ALL-level logging is not required for this operational pipeline and would significantly increase CloudWatch costs.',
         },
         {
           id: 'AwsSolutions-SF2',

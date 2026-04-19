@@ -83,6 +83,10 @@ export class ProcessorStack extends cdk.Stack {
           reason:
             'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
         },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+        },
       ],
       true,
     );

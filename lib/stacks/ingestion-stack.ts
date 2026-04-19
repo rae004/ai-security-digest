@@ -6,7 +6,7 @@ import { BundlingOptions, NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { NagSuppressions } from 'cdk-nag';
-import { Construct } from 'constructs';
+import { Construct, IConstruct } from 'constructs';
 
 export interface IngestionStackProps extends cdk.StackProps {
   configBucket: s3.IBucket;
@@ -139,14 +139,23 @@ export class IngestionStack extends cdk.Stack {
             reason:
               'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
           },
+          {
+            id: 'AwsSolutions-L1',
+            reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+          },
         ],
         true, // apply to role and inline policy children
       );
     }
 
-    // BucketDeployment uses an internal CDK custom-resource Lambda
+    // BucketDeployment uses a CDK singleton custom-resource Lambda that lives outside
+    // the sourcesDeployment construct subtree. We reach it via handlerRole.node.scope,
+    // which is the singleton construct that owns both the Lambda function and its role.
+    const bucketDeploymentSingleton = (sourcesDeployment.handlerRole as unknown as IConstruct)
+      .node.scope as IConstruct;
+
     NagSuppressions.addResourceSuppressions(
-      sourcesDeployment,
+      bucketDeploymentSingleton,
       [
         {
           id: 'AwsSolutions-IAM4',
