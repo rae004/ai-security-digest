@@ -7,6 +7,7 @@ import { IngestionStack } from '../lib/stacks/ingestion-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
 import { OrchestrationStack } from '../lib/stacks/orchestration-stack';
 import { ProcessorStack } from '../lib/stacks/processor-stack';
+import { SchedulerStack } from '../lib/stacks/scheduler-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
 
 const app = new cdk.App();
@@ -77,6 +78,16 @@ const observabilityStack = new ObservabilityStack(app, 'AiSecurityDigestObservab
   monthlyBudgetUsd: 20,
 });
 observabilityStack.addDependency(orchestrationStack);
+
+const schedulerStack = new SchedulerStack(app, 'AiSecurityDigestSchedulerStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — EventBridge Scheduler (daily pipeline trigger)',
+  stateMachine: orchestrationStack.stateMachine,
+});
+schedulerStack.addDependency(orchestrationStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
