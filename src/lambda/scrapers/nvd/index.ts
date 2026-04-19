@@ -92,7 +92,7 @@ async function fetchNvdPage(params: URLSearchParams): Promise<NvdResponse> {
 }
 
 export const handler = async (event: ScraperEvent): Promise<ScrapeResult> => {
-  const date = event.date ?? new Date().toISOString().slice(0, 10);
+  const date = (event.date ?? new Date().toISOString()).slice(0, 10);
   const lookbackHours = event.lookbackHours ?? 48;
   const scrapedAt = new Date().toISOString();
   const errors: string[] = [];

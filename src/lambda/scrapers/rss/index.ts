@@ -134,7 +134,7 @@ const CONFIG_BUCKET = process.env.CONFIG_BUCKET ?? '';
 const RAW_ARTICLES_BUCKET = process.env.RAW_ARTICLES_BUCKET ?? '';
 
 export const handler = async (event: ScraperEvent): Promise<ScrapeResult> => {
-  const date = event.date ?? new Date().toISOString().slice(0, 10);
+  const date = (event.date ?? new Date().toISOString()).slice(0, 10);
   const lookbackHours = event.lookbackHours ?? 48;
   const scrapedAt = new Date().toISOString();
   const cutoff = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);

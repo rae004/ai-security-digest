@@ -1,0 +1,255 @@
+import * as path from 'path';
+
+import * as cdk from 'aws-cdk-lib';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { BundlingOptions, NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
+import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { NagSuppressions } from 'cdk-nag';
+import { Construct } from 'constructs';
+
+export interface OrchestrationStackProps extends cdk.StackProps {
+  processedArticlesBucket: s3.IBucket;
+  digestsBucket: s3.IBucket;
+  // Scraper + processor functions from upstream stacks
+  rssScraperFn: lambda.IFunction;
+  nvdScraperFn: lambda.IFunction;
+  arxivScraperFn: lambda.IFunction;
+  xScraperFn: lambda.IFunction;
+  processorFn: lambda.IFunction;
+}
+
+export class OrchestrationStack extends cdk.Stack {
+  public readonly stateMachine: sfn.IStateMachine;
+  public readonly filterFn: lambda.IFunction;
+
+  constructor(scope: Construct, id: string, props: OrchestrationStackProps) {
+    super(scope, id, props);
+
+    const {
+      processedArticlesBucket,
+      digestsBucket,
+      rssScraperFn,
+      nvdScraperFn,
+      arxivScraperFn,
+      xScraperFn,
+      processorFn,
+    } = props;
+
+    // ── Filter Lambda ──────────────────────────────────────────────────────────
+    const bundling: BundlingOptions = {
+      externalModules: ['@aws-sdk/*'],
+      target: 'node22',
+      minify: true,
+      sourceMap: false,
+    };
+
+    const filterFn = new NodejsFunction(this, 'FilterFunction', {
+      description: 'Filters and sorts analyzed articles into a DigestPayload written to S3',
+      entry: path.join(__dirname, '../../src/lambda/filter/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.minutes(2),
+      memorySize: 256,
+      environment: {
+        PROCESSED_ARTICLES_BUCKET: processedArticlesBucket.bucketName,
+        DIGESTS_BUCKET: digestsBucket.bucketName,
+        NODE_OPTIONS: '--enable-source-maps',
+      },
+      bundling,
+    });
+
+    this.filterFn = filterFn;
+
+    processedArticlesBucket.grantRead(filterFn);
+    digestsBucket.grantPut(filterFn);
+
+    // ── Step Functions task definitions ────────────────────────────────────────
+    // Each scraper receives $$.Execution.StartTime as 'date' so all branches
+    // use the same calendar date even if the execution spans midnight.
+    const scraperPayload = sfn.TaskInput.fromObject({
+      'date.$': '$$.Execution.StartTime',
+    });
+
+    const scraperResultSelector = {
+      's3Key.$': '$.Payload.s3Key',
+      'sourceType.$': '$.Payload.sourceType',
+      'articleCount.$': '$.Payload.articleCount',
+    };
+
+    const rssTask = new tasks.LambdaInvoke(this, 'RssScraper', {
+      lambdaFunction: rssScraperFn,
+      comment: 'Scrape enabled RSS/Atom feeds',
+      payload: scraperPayload,
+      resultSelector: scraperResultSelector,
+    });
+
+    const nvdTask = new tasks.LambdaInvoke(this, 'NvdScraper', {
+      lambdaFunction: nvdScraperFn,
+      comment: 'Scrape NVD API v2 for recent CVEs',
+      payload: scraperPayload,
+      resultSelector: scraperResultSelector,
+    });
+
+    const arxivTask = new tasks.LambdaInvoke(this, 'ArxivScraper', {
+      lambdaFunction: arxivScraperFn,
+      comment: 'Scrape ArXiv for recent AI/security papers',
+      payload: scraperPayload,
+      resultSelector: scraperResultSelector,
+    });
+
+    const xTask = new tasks.LambdaInvoke(this, 'XScraper', {
+      lambdaFunction: xScraperFn,
+      comment: 'X scraper stub — returns 0 articles when disabled',
+      payload: scraperPayload,
+      resultSelector: scraperResultSelector,
+    });
+
+    // ── Parallel scrape ────────────────────────────────────────────────────────
+    // Output: [{ s3Key, sourceType, articleCount }, ...] — one per branch,
+    // in definition order: rss[0], nvd[1], arxiv[2], x[3]
+    const scrapeParallel = new sfn.Parallel(this, 'ScrapeSources', {
+      comment: 'Fan-out: scrape all sources concurrently',
+    })
+      .branch(rssTask)
+      .branch(nvdTask)
+      .branch(arxivTask)
+      .branch(xTask);
+
+    // ── Collect raw S3 keys → ProcessorEvent ──────────────────────────────────
+    // States.ArrayGetItem + States.StringSplit extracts YYYY-MM-DD from the
+    // ISO execution start time without any Lambda round-trip.
+    const collectKeys = new sfn.Pass(this, 'CollectRawKeys', {
+      comment: 'Reshape parallel output into ProcessorEvent',
+      parameters: {
+        'date.$':
+          "States.ArrayGetItem(States.StringSplit($$.Execution.StartTime, 'T'), 0)",
+        'rawS3Keys.$':
+          'States.Array($[0].s3Key, $[1].s3Key, $[2].s3Key, $[3].s3Key)',
+      },
+    });
+
+    // ── Process ────────────────────────────────────────────────────────────────
+    const processTask = new tasks.LambdaInvoke(this, 'ProcessArticles', {
+      lambdaFunction: processorFn,
+      comment: 'Invoke Bedrock Claude to triage and summarize raw articles',
+      resultSelector: {
+        's3Key.$': '$.Payload.s3Key',
+        'articleCount.$': '$.Payload.articleCount',
+      },
+    });
+
+    // ── Reshape → FilterEvent ──────────────────────────────────────────────────
+    const prepareFilter = new sfn.Pass(this, 'PrepareFilterInput', {
+      comment: 'Reshape ProcessResult into FilterEvent',
+      parameters: {
+        'date.$':
+          "States.ArrayGetItem(States.StringSplit($$.Execution.StartTime, 'T'), 0)",
+        'processedS3Key.$': '$.s3Key',
+      },
+    });
+
+    // ── Filter ─────────────────────────────────────────────────────────────────
+    const filterTask = new tasks.LambdaInvoke(this, 'FilterArticles', {
+      lambdaFunction: filterFn,
+      comment: 'Filter, sort, and write DigestPayload to S3',
+      resultSelector: {
+        's3Key.$': '$.Payload.s3Key',
+        'included.$': '$.Payload.included',
+        'excluded.$': '$.Payload.excluded',
+      },
+    });
+
+    // ── Phase 5 placeholder ────────────────────────────────────────────────────
+    // Notifier Lambda (SES email) will replace this Pass in the next phase.
+    const digestReady = new sfn.Pass(this, 'DigestReady', {
+      comment: 'Placeholder — SES notifier will be added in Phase 5',
+    });
+
+    // ── State machine definition ───────────────────────────────────────────────
+    const definition = scrapeParallel
+      .next(collectKeys)
+      .next(processTask)
+      .next(prepareFilter)
+      .next(filterTask)
+      .next(digestReady);
+
+    // CloudWatch log group for execution history
+    const sfnLogGroup = new logs.LogGroup(this, 'StateMachineLogs', {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const stateMachine = new sfn.StateMachine(this, 'DigestPipeline', {
+      definitionBody: sfn.DefinitionBody.fromChainable(definition),
+      stateMachineType: sfn.StateMachineType.EXPRESS,
+      timeout: cdk.Duration.minutes(30),
+      tracingEnabled: true,
+      logs: {
+        destination: sfnLogGroup,
+        level: sfn.LogLevel.ERROR,
+        includeExecutionData: false,
+      },
+    });
+
+    this.stateMachine = stateMachine;
+
+    // ── CloudFormation outputs ─────────────────────────────────────────────────
+    new cdk.CfnOutput(this, 'StateMachineArn', {
+      value: stateMachine.stateMachineArn,
+      description: 'AI Security Digest pipeline state machine ARN',
+      exportName: 'AiSecurityDigest-StateMachineArn',
+    });
+
+    new cdk.CfnOutput(this, 'FilterFunctionName', {
+      value: filterFn.functionName,
+      description: 'Filter Lambda function name',
+    });
+
+    // ── CDK NAG suppressions ───────────────────────────────────────────────────
+    NagSuppressions.addResourceSuppressions(
+      filterFn,
+      [
+        {
+          id: 'AwsSolutions-IAM4',
+          reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
+        },
+      ],
+      true,
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      stateMachine,
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'Step Functions execution role uses lambda:InvokeFunction on specific function ARNs; the :* suffix for qualified versions is a CDK default.',
+        },
+        {
+          id: 'AwsSolutions-SF2',
+          reason:
+            'X-Ray tracing is enabled on this state machine (tracingEnabled: true).',
+        },
+      ],
+      true,
+    );
+
+    NagSuppressions.addResourceSuppressions(
+      sfnLogGroup,
+      [
+        {
+          id: 'AwsSolutions-CW3',
+          reason:
+            'Step Functions execution logs are operational data, not sensitive; KMS encryption is not required for this log group.',
+        },
+      ],
+    );
+  }
+}

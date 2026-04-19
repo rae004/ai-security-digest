@@ -59,7 +59,7 @@ async function processBatch(articles: RawArticle[]): Promise<AnalyzedArticle[]> 
 // ── Lambda handler ─────────────────────────────────────────────────────────────
 
 export const handler = async (event: ProcessorEvent): Promise<ProcessResult> => {
-  const date = event.date ?? new Date().toISOString().slice(0, 10);
+  const date = (event.date ?? new Date().toISOString()).slice(0, 10);
   const processedAt = new Date().toISOString();
 
   const rawArticles = await loadRawArticles(event.rawS3Keys);

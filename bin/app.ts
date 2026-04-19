@@ -4,6 +4,7 @@ import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
 import { IngestionStack } from '../lib/stacks/ingestion-stack';
+import { OrchestrationStack } from '../lib/stacks/orchestration-stack';
 import { ProcessorStack } from '../lib/stacks/processor-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
 
@@ -38,6 +39,23 @@ const processorStack = new ProcessorStack(app, 'AiSecurityDigestProcessorStack',
   processedArticlesBucket: storageStack.processedArticlesBucket,
 });
 processorStack.addDependency(storageStack);
+
+const orchestrationStack = new OrchestrationStack(app, 'AiSecurityDigestOrchestrationStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — Filter Lambda + Step Functions pipeline',
+  processedArticlesBucket: storageStack.processedArticlesBucket,
+  digestsBucket: storageStack.digestsBucket,
+  rssScraperFn: ingestionStack.rssScraperFn,
+  nvdScraperFn: ingestionStack.nvdScraperFn,
+  arxivScraperFn: ingestionStack.arxivScraperFn,
+  xScraperFn: ingestionStack.xScraperFn,
+  processorFn: processorStack.processorFn,
+});
+orchestrationStack.addDependency(ingestionStack);
+orchestrationStack.addDependency(processorStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
