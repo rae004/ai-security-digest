@@ -1,12 +1,14 @@
 import * as path from 'path';
 
 import * as cdk from 'aws-cdk-lib';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { BundlingOptions, NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
@@ -21,9 +23,13 @@ export interface OrchestrationStackProps extends cdk.StackProps {
   processorFn: lambda.IFunction;
 }
 
+const SSM_SENDER_PARAM = '/ai-security-digest/sender';
+const SSM_RECIPIENTS_PARAM = '/ai-security-digest/recipients';
+
 export class OrchestrationStack extends cdk.Stack {
   public readonly stateMachine: sfn.IStateMachine;
   public readonly filterFn: lambda.IFunction;
+  public readonly notifierFn: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: OrchestrationStackProps) {
     super(scope, id, props);
@@ -38,7 +44,6 @@ export class OrchestrationStack extends cdk.Stack {
       processorFn,
     } = props;
 
-    // ── Filter Lambda ──────────────────────────────────────────────────────────
     const bundling: BundlingOptions = {
       externalModules: ['@aws-sdk/*'],
       target: 'node22',
@@ -46,6 +51,20 @@ export class OrchestrationStack extends cdk.Stack {
       sourceMap: false,
     };
 
+    // ── SSM parameters (created with placeholders — update post-deployment) ─────
+    const senderParam = new ssm.StringParameter(this, 'SenderParam', {
+      parameterName: SSM_SENDER_PARAM,
+      description: 'Verified SES sender address for the daily digest email',
+      stringValue: 'update-me@example.com',
+    });
+
+    const recipientsParam = new ssm.StringParameter(this, 'RecipientsParam', {
+      parameterName: SSM_RECIPIENTS_PARAM,
+      description: 'Comma-separated recipient email addresses for the daily digest',
+      stringValue: 'update-me@example.com',
+    });
+
+    // ── Filter Lambda ──────────────────────────────────────────────────────────
     const filterFn = new NodejsFunction(this, 'FilterFunction', {
       description: 'Filters and sorts analyzed articles into a DigestPayload written to S3',
       entry: path.join(__dirname, '../../src/lambda/filter/index.ts'),
@@ -61,13 +80,50 @@ export class OrchestrationStack extends cdk.Stack {
     });
 
     this.filterFn = filterFn;
-
     processedArticlesBucket.grantRead(filterFn);
     digestsBucket.grantPut(filterFn);
 
+    // ── Notifier Lambda ────────────────────────────────────────────────────────
+    const notifierFn = new NodejsFunction(this, 'NotifierFunction', {
+      description: 'Reads DigestPayload from S3 and sends the daily email via SES',
+      entry: path.join(__dirname, '../../src/lambda/notifier/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: cdk.Duration.minutes(2),
+      memorySize: 256,
+      environment: {
+        DIGESTS_BUCKET: digestsBucket.bucketName,
+        SSM_SENDER_PARAM,
+        SSM_RECIPIENTS_PARAM,
+        NODE_OPTIONS: '--enable-source-maps',
+      },
+      bundling,
+    });
+
+    this.notifierFn = notifierFn;
+    digestsBucket.grantRead(notifierFn);
+
+    // SES: scoped to account identities — specific identity set via SSM post-deploy
+    notifierFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: 'SesSendEmail',
+        actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+        resources: [`arn:aws:ses:us-east-1:${this.account}:identity/*`],
+      }),
+    );
+
+    // SSM: scoped to the exact two parameter paths
+    notifierFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: 'SsmGetDigestParams',
+        actions: ['ssm:GetParameter'],
+        resources: [
+          senderParam.parameterArn,
+          recipientsParam.parameterArn,
+        ],
+      }),
+    );
+
     // ── Step Functions task definitions ────────────────────────────────────────
-    // Each scraper receives $$.Execution.StartTime as 'date' so all branches
-    // use the same calendar date even if the execution spans midnight.
     const scraperPayload = sfn.TaskInput.fromObject({
       'date.$': '$$.Execution.StartTime',
     });
@@ -107,8 +163,6 @@ export class OrchestrationStack extends cdk.Stack {
     });
 
     // ── Parallel scrape ────────────────────────────────────────────────────────
-    // Output: [{ s3Key, sourceType, articleCount }, ...] — one per branch,
-    // in definition order: rss[0], nvd[1], arxiv[2], x[3]
     const scrapeParallel = new sfn.Parallel(this, 'ScrapeSources', {
       comment: 'Fan-out: scrape all sources concurrently',
     })
@@ -118,8 +172,6 @@ export class OrchestrationStack extends cdk.Stack {
       .branch(xTask);
 
     // ── Collect raw S3 keys → ProcessorEvent ──────────────────────────────────
-    // States.ArrayGetItem + States.StringSplit extracts YYYY-MM-DD from the
-    // ISO execution start time without any Lambda round-trip.
     const collectKeys = new sfn.Pass(this, 'CollectRawKeys', {
       comment: 'Reshape parallel output into ProcessorEvent',
       parameters: {
@@ -161,10 +213,25 @@ export class OrchestrationStack extends cdk.Stack {
       },
     });
 
-    // ── Phase 5 placeholder ────────────────────────────────────────────────────
-    // Notifier Lambda (SES email) will replace this Pass in the next phase.
-    const digestReady = new sfn.Pass(this, 'DigestReady', {
-      comment: 'Placeholder — SES notifier will be added in Phase 5',
+    // ── Reshape → NotifierEvent ────────────────────────────────────────────────
+    const prepareNotifier = new sfn.Pass(this, 'PrepareNotifierInput', {
+      comment: 'Reshape FilterResult into NotifierEvent',
+      parameters: {
+        'date.$':
+          "States.ArrayGetItem(States.StringSplit($$.Execution.StartTime, 'T'), 0)",
+        'digestS3Key.$': '$.s3Key',
+      },
+    });
+
+    // ── Notify ─────────────────────────────────────────────────────────────────
+    const notifyTask = new tasks.LambdaInvoke(this, 'SendDigestEmail', {
+      lambdaFunction: notifierFn,
+      comment: 'Send daily digest email via SES',
+      resultSelector: {
+        'messageId.$': '$.Payload.messageId',
+        'recipientCount.$': '$.Payload.recipientCount',
+        'articleCount.$': '$.Payload.articleCount',
+      },
     });
 
     // ── State machine definition ───────────────────────────────────────────────
@@ -173,9 +240,9 @@ export class OrchestrationStack extends cdk.Stack {
       .next(processTask)
       .next(prepareFilter)
       .next(filterTask)
-      .next(digestReady);
+      .next(prepareNotifier)
+      .next(notifyTask);
 
-    // CloudWatch log group for execution history
     const sfnLogGroup = new logs.LogGroup(this, 'StateMachineLogs', {
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -207,6 +274,19 @@ export class OrchestrationStack extends cdk.Stack {
       description: 'Filter Lambda function name',
     });
 
+    new cdk.CfnOutput(this, 'NotifierFunctionName', {
+      value: notifierFn.functionName,
+      description: 'Notifier Lambda function name',
+    });
+
+    new cdk.CfnOutput(this, 'PostDeploySteps', {
+      value: [
+        `aws ssm put-parameter --name ${SSM_SENDER_PARAM} --value "YOUR_VERIFIED_SES_ADDRESS" --overwrite`,
+        `aws ssm put-parameter --name ${SSM_RECIPIENTS_PARAM} --value "r1@example.com,r2@example.com" --overwrite`,
+      ].join(' && '),
+      description: 'Run these commands after verifying your SES identity to activate email delivery',
+    });
+
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
     NagSuppressions.addResourceSuppressions(
       filterFn,
@@ -225,6 +305,22 @@ export class OrchestrationStack extends cdk.Stack {
     );
 
     NagSuppressions.addResourceSuppressions(
+      notifierFn,
+      [
+        {
+          id: 'AwsSolutions-IAM4',
+          reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'SES identity wildcard is required since the verified sender address is configured post-deployment via SSM.',
+        },
+      ],
+      true,
+    );
+
+    NagSuppressions.addResourceSuppressions(
       stateMachine,
       [
         {
@@ -234,22 +330,18 @@ export class OrchestrationStack extends cdk.Stack {
         },
         {
           id: 'AwsSolutions-SF2',
-          reason:
-            'X-Ray tracing is enabled on this state machine (tracingEnabled: true).',
+          reason: 'X-Ray tracing is enabled on this state machine (tracingEnabled: true).',
         },
       ],
       true,
     );
 
-    NagSuppressions.addResourceSuppressions(
-      sfnLogGroup,
-      [
-        {
-          id: 'AwsSolutions-CW3',
-          reason:
-            'Step Functions execution logs are operational data, not sensitive; KMS encryption is not required for this log group.',
-        },
-      ],
-    );
+    NagSuppressions.addResourceSuppressions(sfnLogGroup, [
+      {
+        id: 'AwsSolutions-CW3',
+        reason:
+          'Step Functions execution logs are operational data, not sensitive; KMS encryption is not required for this log group.',
+      },
+    ]);
   }
 }
