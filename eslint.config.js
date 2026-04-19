@@ -4,7 +4,7 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 module.exports = [
   // Ignore non-TS files and generated output
   {
-    ignores: ['cdk.out/**', 'node_modules/**', 'coverage/**', '**/*.d.ts', 'eslint.config.js', 'jest.config.js'],
+    ignores: ['cdk.out/**', 'node_modules/**', 'coverage/**', '**/*.d.ts', '**/*.js'],
   },
 
   // Base TypeScript ESLint recommended rules (flat config — spreads 3 config objects)
