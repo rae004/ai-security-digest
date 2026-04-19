@@ -13,15 +13,15 @@ export interface ProcessorStackProps extends cdk.StackProps {
   processedArticlesBucket: s3.IBucket;
 }
 
-// Bedrock model ARN for Claude 3.5 Sonnet v2 — us-east-1 on-demand
-const BEDROCK_MODEL_ARN =
-  'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0';
-
 export class ProcessorStack extends cdk.Stack {
   public readonly processorFn: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: ProcessorStackProps) {
     super(scope, id, props);
+
+    // Bedrock inference profile for Claude Sonnet 4.6 — us-east-1 cross-region
+    // Inference profile ARNs include the account ID (unlike foundation model ARNs)
+    const BEDROCK_MODEL_ARN = `arn:aws:bedrock:us-east-1:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6`;
 
     const { rawArticlesBucket, processedArticlesBucket } = props;
 
@@ -54,12 +54,28 @@ export class ProcessorStack extends cdk.Stack {
     rawArticlesBucket.grantRead(processorFn);
     processedArticlesBucket.grantPut(processorFn);
 
-    // Bedrock: scoped to the specific model ARN — no wildcard needed
+    // Bedrock: grant on the inference profile AND the foundation model across all US regions.
+    // Cross-region inference profiles route requests to any US region (us-east-1, us-east-2,
+    // us-west-2) — Bedrock checks IAM against the destination region's foundation model ARN,
+    // so a region wildcard is required.
     processorFn.addToRolePolicy(
       new iam.PolicyStatement({
         sid: 'BedrockInvokeModel',
         actions: ['bedrock:InvokeModel'],
-        resources: [BEDROCK_MODEL_ARN],
+        resources: [
+          BEDROCK_MODEL_ARN,
+          'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6',
+        ],
+      }),
+    );
+
+    // Marketplace-sourced Bedrock models require the calling role to verify the
+    // subscription at invocation time via these Marketplace read actions.
+    processorFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: 'MarketplaceSubscriptionCheck',
+        actions: ['aws-marketplace:ViewSubscriptions', 'aws-marketplace:Subscribe'],
+        resources: ['*'],
       }),
     );
 

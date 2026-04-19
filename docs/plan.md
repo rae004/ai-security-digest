@@ -12,7 +12,7 @@ A fully serverless, daily email digest pipeline that scrapes curated AI/security
 
 Agent Core is best suited for open-ended, multi-turn agentic workflows where an LLM needs to decide *which tools to call and when*. This pipeline is **deterministic**: scrape → analyze → filter → email on a fixed schedule. Agent Core would add cost and complexity without meaningful benefit here.
 
-**Decision:** Step Functions for orchestration, Bedrock (Claude 3.5 Sonnet) invoked directly from Lambda for analysis. Agent Core left as a future upgrade path if the analysis step needs to become more autonomous (e.g. "go find more about this CVE").
+**Decision:** Step Functions for orchestration, Bedrock (Claude Sonnet 4.6) invoked directly from Lambda for analysis. Agent Core left as a future upgrade path if the analysis step needs to become more autonomous (e.g. "go find more about this CVE").
 
 ### AWS Authentication
 
@@ -225,7 +225,7 @@ All rule suppressions documented with `reason` strings inline in the stack code.
 |---|---|
 | Lambda (all functions) | ~$0.10 |
 | Step Functions Express | ~$0.01 |
-| Bedrock Claude 3.5 Sonnet | ~$2–8 (depends on article volume) |
+| Bedrock Claude Sonnet 4.6 | ~$2–8 (depends on article volume) |
 | S3 | ~$0.05 |
 | SES | ~$0.00 (under free tier for low volume) |
 | EventBridge Scheduler | ~$0.00 |

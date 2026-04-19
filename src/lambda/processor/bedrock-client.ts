@@ -4,7 +4,7 @@ import {
   ThrottlingException,
 } from '@aws-sdk/client-bedrock-runtime';
 
-export const MODEL_ID = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+export const MODEL_ID = 'us.anthropic.claude-sonnet-4-6';
 
 const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
 

@@ -85,13 +85,16 @@ describe('ProcessorStack', () => {
 
   // ── IAM policy — Bedrock ──────────────────────────────────────────────────────
 
-  test('IAM role grants bedrock:InvokeModel on the Claude 3.5 Sonnet ARN', () => {
+  test('IAM role grants bedrock:InvokeModel on both the inference profile and foundation model ARNs', () => {
     template.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: Match.objectLike({
         Statement: Match.arrayWith([
           Match.objectLike({
             Action: 'bedrock:InvokeModel',
-            Resource: 'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0',
+            Resource: Match.arrayWith([
+              'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-6',
+              'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6',
+            ]),
           }),
         ]),
       }),
