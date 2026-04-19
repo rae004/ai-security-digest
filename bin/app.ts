@@ -4,6 +4,7 @@ import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
 import { IngestionStack } from '../lib/stacks/ingestion-stack';
+import { ObservabilityStack } from '../lib/stacks/observability-stack';
 import { OrchestrationStack } from '../lib/stacks/orchestration-stack';
 import { ProcessorStack } from '../lib/stacks/processor-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
@@ -56,6 +57,26 @@ const orchestrationStack = new OrchestrationStack(app, 'AiSecurityDigestOrchestr
 });
 orchestrationStack.addDependency(ingestionStack);
 orchestrationStack.addDependency(processorStack);
+
+const observabilityStack = new ObservabilityStack(app, 'AiSecurityDigestObservabilityStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — CloudWatch Dashboard, alarms, and AWS Budget',
+  stateMachine: orchestrationStack.stateMachine,
+  scraperFunctions: [
+    { fn: ingestionStack.rssScraperFn, label: 'RssScraper' },
+    { fn: ingestionStack.nvdScraperFn, label: 'NvdScraper' },
+    { fn: ingestionStack.arxivScraperFn, label: 'ArxivScraper' },
+    { fn: ingestionStack.xScraperFn, label: 'XScraper' },
+  ],
+  processorFn: { fn: processorStack.processorFn, label: 'Processor' },
+  filterFn: { fn: orchestrationStack.filterFn, label: 'Filter' },
+  notifierFn: { fn: orchestrationStack.notifierFn, label: 'Notifier' },
+  monthlyBudgetUsd: 20,
+});
+observabilityStack.addDependency(orchestrationStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
