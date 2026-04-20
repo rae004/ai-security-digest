@@ -19,9 +19,9 @@ export class ProcessorStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ProcessorStackProps) {
     super(scope, id, props);
 
-    // Bedrock inference profile for Claude Sonnet 4.6 — us-east-1 cross-region
+    // Bedrock inference profile for Claude Sonnet 4.6 — cross-region (US)
     // Inference profile ARNs include the account ID (unlike foundation model ARNs)
-    const BEDROCK_MODEL_ARN = `arn:aws:bedrock:us-east-1:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6`;
+    const BEDROCK_MODEL_ARN = `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6`;
 
     const { rawArticlesBucket, processedArticlesBucket } = props;
 

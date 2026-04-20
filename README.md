@@ -249,7 +249,7 @@ npx cdk deploy --all
 # Set verified sender (SES identity must exist)
 aws ssm put-parameter \
   --name /ai-security-digest/sender \
-  --value "no-reply@rae-dev.com" \
+  --value "no-reply@YOUR_DOMAIN" \
   --overwrite
 
 # Set comma-separated recipients
@@ -292,7 +292,7 @@ Controls which sources are scraped. Seeded to S3 on deploy. Toggling existing so
 
 | Parameter | Description |
 |---|---|
-| `/ai-security-digest/sender` | Verified SES sender address (e.g. `no-reply@rae-dev.com`) |
+| `/ai-security-digest/sender` | Verified SES sender address (e.g. `no-reply@YOUR_DOMAIN`) |
 | `/ai-security-digest/recipients` | Comma-separated recipient email addresses |
 
 Both parameters are created with placeholder values on deploy and must be updated before the first run.
