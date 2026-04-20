@@ -1,6 +1,8 @@
 import {
   filterAndSort,
   INCLUDE_THRESHOLD,
+  loadSeenIds,
+  saveSeenIds,
   SEVERITY_RANK,
   shouldInclude,
   sortArticles,
@@ -184,5 +186,83 @@ describe('filterAndSort', () => {
     expect(INCLUDE_THRESHOLD.AI_GENERAL).toBe(SEVERITY_RANK.MEDIUM);
     expect(INCLUDE_THRESHOLD.AWS_SECURITY).toBe(SEVERITY_RANK.HIGH);
     expect(INCLUDE_THRESHOLD.OTHER).toBe(SEVERITY_RANK.CRITICAL);
+  });
+});
+
+// ── loadSeenIds / saveSeenIds ──────────────────────────────────────────────────
+
+const mockGetJson = jest.fn();
+const mockPutJson = jest.fn();
+
+jest.mock('../../../src/lambda/shared/s3-client', () => ({
+  getJsonFromS3: (...args: unknown[]): unknown => mockGetJson(...args),
+  putJsonToS3: (...args: unknown[]): unknown => mockPutJson(...args),
+}));
+
+describe('loadSeenIds', () => {
+  beforeEach(() => {
+    mockGetJson.mockReset();
+    mockPutJson.mockReset();
+  });
+
+  it('returns an empty set when no sent-ids files exist', async () => {
+    mockGetJson.mockRejectedValue(new Error('NoSuchKey'));
+    const result = await loadSeenIds('my-bucket', '2026-04-19', 3);
+    expect(result.size).toBe(0);
+  });
+
+  it('loads IDs from existing sent-ids files', async () => {
+    mockGetJson
+      .mockResolvedValueOnce(['id-a', 'id-b'])  // day -1
+      .mockRejectedValueOnce(new Error('NoSuchKey')) // day -2 missing
+      .mockResolvedValueOnce(['id-c']);              // day -3
+    const result = await loadSeenIds('my-bucket', '2026-04-19', 3);
+    expect(result.has('id-a')).toBe(true);
+    expect(result.has('id-b')).toBe(true);
+    expect(result.has('id-c')).toBe(true);
+    expect(result.size).toBe(3);
+  });
+
+  it('reads files for the correct lookback dates', async () => {
+    mockGetJson.mockRejectedValue(new Error('NoSuchKey'));
+    await loadSeenIds('my-bucket', '2026-04-19', 2);
+    expect(mockGetJson).toHaveBeenCalledWith('my-bucket', 'sent-ids/2026-04-18.json');
+    expect(mockGetJson).toHaveBeenCalledWith('my-bucket', 'sent-ids/2026-04-17.json');
+    expect(mockGetJson).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not read the current date (only previous days)', async () => {
+    mockGetJson.mockRejectedValue(new Error('NoSuchKey'));
+    await loadSeenIds('my-bucket', '2026-04-19', 1);
+    expect(mockGetJson).not.toHaveBeenCalledWith('my-bucket', 'sent-ids/2026-04-19.json');
+  });
+
+  it('deduplicates IDs that appear in multiple days', async () => {
+    mockGetJson
+      .mockResolvedValueOnce(['id-a', 'id-b'])
+      .mockResolvedValueOnce(['id-b', 'id-c']);
+    const result = await loadSeenIds('my-bucket', '2026-04-19', 2);
+    expect(result.size).toBe(3);
+  });
+});
+
+describe('saveSeenIds', () => {
+  beforeEach(() => {
+    mockPutJson.mockReset();
+  });
+
+  it('writes IDs to the correct S3 key', async () => {
+    mockPutJson.mockResolvedValue(undefined);
+    await saveSeenIds('my-bucket', '2026-04-19', ['id-a', 'id-b']);
+    expect(mockPutJson).toHaveBeenCalledWith(
+      'my-bucket',
+      'sent-ids/2026-04-19.json',
+      ['id-a', 'id-b'],
+    );
+  });
+
+  it('writes an empty array without throwing', async () => {
+    mockPutJson.mockResolvedValue(undefined);
+    await expect(saveSeenIds('my-bucket', '2026-04-19', [])).resolves.not.toThrow();
   });
 });
