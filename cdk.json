@@ -57,6 +57,11 @@
     "@aws-cdk/aws-cloudwatch-actions:changeLambdaPermissionLogicalIdForLambdaAction": true,
 
     "@aws-cdk/customresources:installLatestAwsSdkDefault": false,
-    "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": false
+    "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": false,
+
+    "ai-security-digest:region": "us-east-1",
+    "ai-security-digest:monthlyBudgetUsd": 20,
+    "ai-security-digest:scheduleHour": "6",
+    "ai-security-digest:scheduleMinute": "0"
   }
 }

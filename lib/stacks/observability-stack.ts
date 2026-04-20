@@ -262,7 +262,7 @@ export class ObservabilityStack extends cdk.Stack {
 
     // ── CloudFormation outputs ─────────────────────────────────────────────────
     new cdk.CfnOutput(this, 'DashboardUrl', {
-      value: `https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=AI-Security-Digest`,
+      value: `https://console.aws.amazon.com/cloudwatch/home?region=${this.region}#dashboards:name=AI-Security-Digest`,
       description: 'CloudWatch Dashboard URL',
     });
 

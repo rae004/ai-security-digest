@@ -107,7 +107,7 @@ export class OrchestrationStack extends cdk.Stack {
       new iam.PolicyStatement({
         sid: 'SesSendEmail',
         actions: ['ses:SendEmail', 'ses:SendRawEmail'],
-        resources: [`arn:aws:ses:us-east-1:${this.account}:identity/*`],
+        resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
       }),
     );
 

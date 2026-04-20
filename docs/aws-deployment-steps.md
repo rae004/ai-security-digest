@@ -26,7 +26,7 @@ aws sts get-caller-identity
 One-time setup per account/region. Provisions the CDK toolkit S3 bucket and IAM roles that CloudFormation needs:
 
 ```bash
-npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
+npx cdk bootstrap aws://YOUR_ACCOUNT_ID/YOUR_REGION
 ```
 
 > Skip if you've deployed CDK stacks to this account before — run `aws cloudformation describe-stacks --stack-name CDKToolkit` to check.
@@ -40,7 +40,7 @@ The notifier Lambda sends email from an address you own. SES requires that addre
 **Option A — Verify a single email address** (simpler, no DNS needed):
 
 ```bash
-aws ses verify-email-identity --email-address no-reply@rae-dev.com --region us-east-1
+aws ses verify-email-identity --email-address no-reply@YOUR_DOMAIN --region YOUR_REGION
 # AWS sends a confirmation link — click it
 ```
 
@@ -49,7 +49,7 @@ aws ses verify-email-identity --email-address no-reply@rae-dev.com --region us-e
 **Step 1 — Request verification and get the token:**
 
 ```bash
-aws ses verify-domain-identity --domain rae-dev.com --region us-east-1 --no-cli-pager
+aws ses verify-domain-identity --domain YOUR_DOMAIN --region YOUR_REGION --no-cli-pager
 # Returns: { "VerificationToken": "xxxx..." }
 ```
 
@@ -57,7 +57,7 @@ aws ses verify-domain-identity --domain rae-dev.com --region us-east-1 --no-cli-
 
 ```bash
 aws route53 list-hosted-zones --no-cli-pager \
-  --query "HostedZones[?Name=='rae-dev.com.'].Id" \
+  --query "HostedZones[?Name=='YOUR_DOMAIN.'].Id" \
   --output text
 # Returns: /hostedzone/Z1234ABCDEF — use just the ID part
 ```
@@ -72,7 +72,7 @@ aws route53 change-resource-record-sets \
     "Changes": [{
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "_amazonses.rae-dev.com",
+        "Name": "_amazonses.YOUR_DOMAIN",
         "Type": "TXT",
         "TTL": 300,
         "ResourceRecords": [{"Value": "\"YOUR_VERIFICATION_TOKEN\""}]
@@ -87,8 +87,8 @@ aws route53 change-resource-record-sets \
 
 ```bash
 aws ses get-identity-verification-attributes \
-  --identities rae-dev.com \
-  --region us-east-1 \
+  --identities YOUR_DOMAIN \
+  --region YOUR_REGION \
   --no-cli-pager
 # Wait for: "VerificationStatus": "Success"
 ```
@@ -96,7 +96,7 @@ aws ses get-identity-verification-attributes \
 **Step 5 — Set up DKIM** (improves deliverability, prevents spam folder):
 
 ```bash
-aws ses verify-domain-dkim --domain rae-dev.com --region us-east-1 --no-cli-pager
+aws ses verify-domain-dkim --domain YOUR_DOMAIN --region YOUR_REGION --no-cli-pager
 # Returns 3 CNAME tokens — add each one to Route 53:
 ```
 
@@ -111,7 +111,7 @@ aws route53 change-resource-record-sets \
       {
         "Action": "CREATE",
         "ResourceRecordSet": {
-          "Name": "TOKEN_1._domainkey.rae-dev.com",
+          "Name": "TOKEN_1._domainkey.YOUR_DOMAIN",
           "Type": "CNAME",
           "TTL": 300,
           "ResourceRecords": [{"Value": "TOKEN_1.dkim.amazonses.com"}]
@@ -120,7 +120,7 @@ aws route53 change-resource-record-sets \
       {
         "Action": "CREATE",
         "ResourceRecordSet": {
-          "Name": "TOKEN_2._domainkey.rae-dev.com",
+          "Name": "TOKEN_2._domainkey.YOUR_DOMAIN",
           "Type": "CNAME",
           "TTL": 300,
           "ResourceRecords": [{"Value": "TOKEN_2.dkim.amazonses.com"}]
@@ -129,7 +129,7 @@ aws route53 change-resource-record-sets \
       {
         "Action": "CREATE",
         "ResourceRecordSet": {
-          "Name": "TOKEN_3._domainkey.rae-dev.com",
+          "Name": "TOKEN_3._domainkey.YOUR_DOMAIN",
           "Type": "CNAME",
           "TTL": 300,
           "ResourceRecords": [{"Value": "TOKEN_3.dkim.amazonses.com"}]
@@ -143,7 +143,7 @@ aws route53 change-resource-record-sets \
 
 ```bash
 # Check current sending limits
-aws ses get-send-quota --region us-east-1 --no-cli-pager
+aws ses get-send-quota --region YOUR_REGION --no-cli-pager
 
 # If SendMaxRate is 1.0 you're in sandbox — request production:
 # Console → SES → Account dashboard → "Request production access"
@@ -195,9 +195,9 @@ Once stacks are up, the CfnOutputs guide you. Run these in order:
 ```bash
 aws ssm put-parameter \
   --name /ai-security-digest/sender \
-  --value "no-reply@rae-dev.com" \
+  --value "no-reply@YOUR_DOMAIN" \
   --overwrite \
-  --region us-east-1
+  --region YOUR_REGION
 ```
 
 **2. Set recipient list in SSM** (comma-separated):
@@ -207,7 +207,7 @@ aws ssm put-parameter \
   --name /ai-security-digest/recipients \
   --value "you@example.com,colleague@example.com" \
   --overwrite \
-  --region us-east-1
+  --region YOUR_REGION
 ```
 
 **3. Subscribe your real email to the SNS alarm topic** (get the ARN from the `AlarmTopicArn` stack output):
@@ -216,20 +216,20 @@ aws ssm put-parameter \
 TOPIC_ARN=$(aws cloudformation describe-stacks \
   --stack-name AiSecurityDigestObservabilityStack \
   --query "Stacks[0].Outputs[?OutputKey=='AlarmTopicArn'].OutputValue" \
-  --output text --region us-east-1)
+  --output text --region YOUR_REGION)
 
 aws sns subscribe \
   --topic-arn "$TOPIC_ARN" \
   --protocol email \
   --notification-endpoint you@example.com \
-  --region us-east-1
+  --region YOUR_REGION
 # Click the confirmation email AWS sends
 ```
 
 **4. Tag Lambda functions for Budget cost allocation:**
 
 ```bash
-aws lambda list-functions --region us-east-1 --no-cli-pager --query "Functions[?starts_with(FunctionName, 'AiSecurityDigest')].FunctionArn" --output text | tr '\t' '\n' | xargs -I {} aws lambda tag-resource --resource {} --tags Project=ai-security-digest --region us-east-1
+aws lambda list-functions --region YOUR_REGION --no-cli-pager --query "Functions[?starts_with(FunctionName, 'AiSecurityDigest')].FunctionArn" --output text | tr '\t' '\n' | xargs -I {} aws lambda tag-resource --resource {} --tags Project=ai-security-digest --region YOUR_REGION
 ```
 
 This lists all deployed `AiSecurityDigest*` Lambda ARNs and tags each one in a single pipeline.
@@ -245,12 +245,12 @@ Manually trigger the pipeline to verify the full end-to-end flow before waiting 
 SFN_ARN=$(aws cloudformation describe-stacks \
   --stack-name AiSecurityDigestOrchestrationStack \
   --query "Stacks[0].Outputs[?OutputKey=='StateMachineArn'].OutputValue" \
-  --output text --region us-east-1)
+  --output text --region YOUR_REGION)
 
 # Start an execution
 aws stepfunctions start-execution \
   --state-machine-arn "$SFN_ARN" \
-  --region us-east-1
+  --region YOUR_REGION
 ```
 
 Watch it run:
@@ -259,7 +259,7 @@ Watch it run:
 # List recent executions
 aws stepfunctions list-executions \
   --state-machine-arn "$SFN_ARN" \
-  --region us-east-1 \
+  --region YOUR_REGION \
   --max-results 1
 ```
 
@@ -269,9 +269,9 @@ A successful run delivers an email digest and writes a JSON file to the `digests
 DIGESTS_BUCKET=$(aws cloudformation describe-stacks \
   --stack-name AiSecurityDigestStorageStack \
   --query "Stacks[0].Outputs[?OutputKey=='DigestsBucketName'].OutputValue" \
-  --output text --region us-east-1)
+  --output text --region YOUR_REGION)
 
-aws s3 ls "s3://$DIGESTS_BUCKET/digests/" --region us-east-1
+aws s3 ls "s3://$DIGESTS_BUCKET/digests/" --region YOUR_REGION
 ```
 
 You can also open the CloudWatch Dashboard — its URL is in the `DashboardUrl` output of `AiSecurityDigestObservabilityStack`.
