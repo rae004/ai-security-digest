@@ -3,17 +3,91 @@ import * as cdk from 'aws-cdk-lib';
 import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
+import { IngestionStack } from '../lib/stacks/ingestion-stack';
+import { ObservabilityStack } from '../lib/stacks/observability-stack';
+import { OrchestrationStack } from '../lib/stacks/orchestration-stack';
+import { ProcessorStack } from '../lib/stacks/processor-stack';
+import { SchedulerStack } from '../lib/stacks/scheduler-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
 
 const app = new cdk.App();
 
-new StorageStack(app, 'AiSecurityDigestStorageStack', {
+const storageStack = new StorageStack(app, 'AiSecurityDigestStorageStack', {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: 'us-east-1',
   },
   description: 'AI Security Digest — S3 storage layer',
 });
+
+const ingestionStack = new IngestionStack(app, 'AiSecurityDigestIngestionStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — Scraper Lambdas + sources.json deployment',
+  configBucket: storageStack.configBucket,
+  rawArticlesBucket: storageStack.rawArticlesBucket,
+});
+ingestionStack.addDependency(storageStack);
+
+const processorStack = new ProcessorStack(app, 'AiSecurityDigestProcessorStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — Bedrock processor Lambda',
+  rawArticlesBucket: storageStack.rawArticlesBucket,
+  processedArticlesBucket: storageStack.processedArticlesBucket,
+});
+processorStack.addDependency(storageStack);
+
+const orchestrationStack = new OrchestrationStack(app, 'AiSecurityDigestOrchestrationStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — Filter Lambda + Step Functions pipeline',
+  processedArticlesBucket: storageStack.processedArticlesBucket,
+  digestsBucket: storageStack.digestsBucket,
+  rssScraperFn: ingestionStack.rssScraperFn,
+  nvdScraperFn: ingestionStack.nvdScraperFn,
+  arxivScraperFn: ingestionStack.arxivScraperFn,
+  xScraperFn: ingestionStack.xScraperFn,
+  processorFn: processorStack.processorFn,
+});
+orchestrationStack.addDependency(ingestionStack);
+orchestrationStack.addDependency(processorStack);
+
+const observabilityStack = new ObservabilityStack(app, 'AiSecurityDigestObservabilityStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — CloudWatch Dashboard, alarms, and AWS Budget',
+  stateMachine: orchestrationStack.stateMachine,
+  scraperFunctions: [
+    { fn: ingestionStack.rssScraperFn, label: 'RssScraper' },
+    { fn: ingestionStack.nvdScraperFn, label: 'NvdScraper' },
+    { fn: ingestionStack.arxivScraperFn, label: 'ArxivScraper' },
+    { fn: ingestionStack.xScraperFn, label: 'XScraper' },
+  ],
+  processorFn: { fn: processorStack.processorFn, label: 'Processor' },
+  filterFn: { fn: orchestrationStack.filterFn, label: 'Filter' },
+  notifierFn: { fn: orchestrationStack.notifierFn, label: 'Notifier' },
+  monthlyBudgetUsd: 20,
+});
+observabilityStack.addDependency(orchestrationStack);
+
+const schedulerStack = new SchedulerStack(app, 'AiSecurityDigestSchedulerStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1',
+  },
+  description: 'AI Security Digest — EventBridge Scheduler (daily pipeline trigger)',
+  stateMachine: orchestrationStack.stateMachine,
+});
+schedulerStack.addDependency(orchestrationStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
