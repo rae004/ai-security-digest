@@ -316,6 +316,7 @@ aws scheduler update-schedule \
 - **Alarms** (SNS → email):
   - Lambda errors — one alarm per function (threshold: ≥1 error in 5 min)
   - Step Functions pipeline failures (threshold: ≥1 failure in 5 min)
+  - Step Functions pipeline timeouts (threshold: ≥1 timeout in 5 min)
   - SES bounce rate ≥ 5% (SES auto-suspends at 10%)
 - **AWS Budget**: $20/month cap with alerts at 80% and 100%
 - **X-Ray**: enabled on all Lambdas and the Step Functions state machine

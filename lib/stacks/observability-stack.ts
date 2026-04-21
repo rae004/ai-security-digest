@@ -122,6 +122,24 @@ export class ObservabilityStack extends cdk.Stack {
     });
     sfnFailureAlarm.addAlarmAction(alarmAction);
 
+    // ── Step Functions timeout alarm ───────────────────────────────────────────
+    const sfnTimeoutAlarm = new cloudwatch.Alarm(this, 'SfnTimeoutAlarm', {
+      alarmName: 'ai-security-digest-pipeline-timeouts',
+      alarmDescription: 'AI Security Digest Step Functions execution timed out',
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/States',
+        metricName: 'ExecutionsTimedOut',
+        dimensionsMap: { StateMachineArn: stateMachine.stateMachineArn },
+        period: cdk.Duration.minutes(5),
+        statistic: 'Sum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    sfnTimeoutAlarm.addAlarmAction(alarmAction);
+
     // ── SES bounce rate alarm ──────────────────────────────────────────────────
     // SES automatically suspends sending at 10%; alert at 5%
     const sesBounceAlarm = new cloudwatch.Alarm(this, 'SesBounceAlarm', {
@@ -169,12 +187,21 @@ export class ObservabilityStack extends cdk.Stack {
             label: 'Failed',
             color: '#d62728',
           }),
+          new cloudwatch.Metric({
+            namespace: 'AWS/States',
+            metricName: 'ExecutionsTimedOut',
+            dimensionsMap: { StateMachineArn: stateMachine.stateMachineArn },
+            statistic: 'Sum',
+            period: cdk.Duration.hours(1),
+            label: 'Timed Out',
+            color: '#ff7f0e',
+          }),
         ],
       }),
       new cloudwatch.AlarmStatusWidget({
         title: 'Alarm Status',
         width: 12,
-        alarms: [sfnFailureAlarm, sesBounceAlarm, ...lambdaAlarms],
+        alarms: [sfnFailureAlarm, sfnTimeoutAlarm, sesBounceAlarm, ...lambdaAlarms],
       }),
     );
 
