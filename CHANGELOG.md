@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Switch Step Functions state machine from Express to Standard Workflow. Express Workflows are hard-capped at 5 minutes by AWS; the processor Lambda processing 300+ articles via sequential Bedrock calls exceeds this limit. Standard Workflows support executions up to 1 year with negligible cost difference at once-daily frequency.
 
+### Added
+
+- `ExecutionsTimedOut` CloudWatch alarm (`ai-security-digest-pipeline-timeouts`) — fires on the first timeout and pages via SNS, same behaviour as the existing failure alarm (+$0.10/month)
+- Orange `Timed Out` metric line on the Pipeline Executions dashboard widget alongside the existing `Succeeded` and `Failed` lines
+
 ---
 
 ## [1.0.0] - 2026-04-20
