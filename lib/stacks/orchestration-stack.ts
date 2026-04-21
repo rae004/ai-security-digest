@@ -250,8 +250,8 @@ export class OrchestrationStack extends cdk.Stack {
 
     const stateMachine = new sfn.StateMachine(this, 'DigestPipeline', {
       definitionBody: sfn.DefinitionBody.fromChainable(definition),
-      stateMachineType: sfn.StateMachineType.EXPRESS,
-      timeout: cdk.Duration.minutes(30),
+      stateMachineType: sfn.StateMachineType.STANDARD,
+      timeout: cdk.Duration.hours(1),
       tracingEnabled: true,
       logs: {
         destination: sfnLogGroup,
