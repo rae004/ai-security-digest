@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-04-21
+
+### Fixed
+
+- Switch Step Functions state machine from Express to Standard Workflow. Express Workflows are hard-capped at 5 minutes by AWS; the processor Lambda processing 300+ articles via sequential Bedrock calls exceeds this limit. Standard Workflows support executions up to 1 year with negligible cost difference at once-daily frequency.
+
+---
+
 ## [1.0.0] - 2026-04-20
 
 Initial release of the AI Security Digest pipeline.

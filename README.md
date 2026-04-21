@@ -10,7 +10,7 @@ A fully serverless daily email digest pipeline for AI and security intelligence.
 EventBridge Scheduler (daily 06:00 UTC)
         │
         ▼
-Step Functions Express Workflow
+Step Functions Standard Workflow
   ├── Parallel Scrape
   │     ├── Lambda: rss-scraper    (Krebs, THN, Schneier, SANS ISC, AWS blogs)
   │     ├── Lambda: nvd-scraper    (NVD REST API v2)
@@ -359,7 +359,7 @@ All tests must pass and `npm run lint` must be clean before deploying. CDK NAG `
 | Service | Est. Cost / month |
 |---|---|
 | Lambda (all 7 functions, daily runs) | ~$0.10 |
-| Step Functions Express Workflow | ~$0.01 |
+| Step Functions Standard Workflow | ~$0.01 |
 | Bedrock Claude Sonnet 4.6 | ~$2–8 (varies with article volume) |
 | S3 (4 buckets + access logs) | ~$0.05 |
 | Amazon SES | ~$0.00 (under free tier for low volume) |

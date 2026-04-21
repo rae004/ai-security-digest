@@ -133,9 +133,9 @@ describe('OrchestrationStack', () => {
     template.resourceCountIs('AWS::StepFunctions::StateMachine', 1);
   });
 
-  test('state machine is EXPRESS type', () => {
+  test('state machine is STANDARD type', () => {
     template.hasResourceProperties('AWS::StepFunctions::StateMachine', {
-      StateMachineType: 'EXPRESS',
+      StateMachineType: 'STANDARD',
     });
   });
 
