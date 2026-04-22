@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-04-22
+
+### Fixed
+
+- Pre-filter seen article IDs in the processor Lambda before invoking Bedrock — articles already included in a previous digest are skipped entirely, eliminating redundant Bedrock calls regardless of scrape volume
+- Scraper lookback window reduced from 48 hours to 26 hours (24h + 2h drift buffer) via Step Functions payload, preventing re-scraping of the previous day's articles on every daily run
+
+### Changed
+
+- Moved seen-IDs logic (`loadSeenIds`, `saveSeenIds`) to `src/lambda/shared/seen-ids.ts` so both the processor and filter Lambdas share one implementation
+
+---
+
 ## [1.0.1] - 2026-04-21
 
 ### Fixed
@@ -17,8 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ExecutionsTimedOut` CloudWatch alarm (`ai-security-digest-pipeline-timeouts`) — fires on the first timeout and pages via SNS, same behaviour as the existing failure alarm (+$0.10/month)
 - Orange `Timed Out` metric line on the Pipeline Executions dashboard widget alongside the existing `Succeeded` and `Failed` lines
-- Pre-filter seen article IDs in the processor Lambda before invoking Bedrock — articles already included in a previous digest are skipped entirely, eliminating redundant Bedrock calls
-- Scraper lookback window reduced from 48 hours to 26 hours (24h + 2h drift buffer) via Step Functions payload, preventing re-scraping of the previous day's articles on every run
 
 ---
 
