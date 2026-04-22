@@ -11,6 +11,7 @@ import { Construct } from 'constructs';
 export interface ProcessorStackProps extends cdk.StackProps {
   rawArticlesBucket: s3.IBucket;
   processedArticlesBucket: s3.IBucket;
+  digestsBucket: s3.IBucket;
 }
 
 export class ProcessorStack extends cdk.Stack {
@@ -23,7 +24,7 @@ export class ProcessorStack extends cdk.Stack {
     // Inference profile ARNs include the account ID (unlike foundation model ARNs)
     const BEDROCK_MODEL_ARN = `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6`;
 
-    const { rawArticlesBucket, processedArticlesBucket } = props;
+    const { rawArticlesBucket, processedArticlesBucket, digestsBucket } = props;
 
     // ── Processor Lambda ───────────────────────────────────────────────────────
     const bundling: BundlingOptions = {
@@ -43,6 +44,7 @@ export class ProcessorStack extends cdk.Stack {
       environment: {
         RAW_ARTICLES_BUCKET: rawArticlesBucket.bucketName,
         PROCESSED_ARTICLES_BUCKET: processedArticlesBucket.bucketName,
+        DIGESTS_BUCKET: digestsBucket.bucketName,
         NODE_OPTIONS: '--enable-source-maps',
       },
       bundling,
@@ -53,6 +55,7 @@ export class ProcessorStack extends cdk.Stack {
     // ── IAM grants ─────────────────────────────────────────────────────────────
     rawArticlesBucket.grantRead(processorFn);
     processedArticlesBucket.grantPut(processorFn);
+    digestsBucket.grantRead(processorFn); // reads sent-ids/ to pre-filter seen articles
 
     // Bedrock: grant on the inference profile AND the foundation model across all US regions.
     // Cross-region inference profiles route requests to any US region (us-east-1, us-east-2,

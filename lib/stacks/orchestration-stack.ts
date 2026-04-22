@@ -126,6 +126,7 @@ export class OrchestrationStack extends cdk.Stack {
     // ── Step Functions task definitions ────────────────────────────────────────
     const scraperPayload = sfn.TaskInput.fromObject({
       'date.$': '$$.Execution.StartTime',
+      lookbackHours: 26, // 24h coverage + 2h buffer for scheduling drift
     });
 
     const scraperResultSelector = {

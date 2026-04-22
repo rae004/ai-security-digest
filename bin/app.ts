@@ -38,6 +38,7 @@ const processorStack = new ProcessorStack(app, 'AiSecurityDigestProcessorStack',
   description: 'AI Security Digest — Bedrock processor Lambda',
   rawArticlesBucket: storageStack.rawArticlesBucket,
   processedArticlesBucket: storageStack.processedArticlesBucket,
+  digestsBucket: storageStack.digestsBucket,
 });
 processorStack.addDependency(storageStack);
 
