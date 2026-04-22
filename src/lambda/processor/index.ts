@@ -1,4 +1,5 @@
 import { getJsonFromS3, putJsonToS3 } from '../shared/s3-client';
+import { loadSeenIds } from '../shared/seen-ids';
 import type { AnalyzedArticle, ProcessResult, RawArticle } from '../shared/types';
 import { invokeModel, MODEL_ID } from './bedrock-client';
 import { buildUserMessage, parseAnalysis, SYSTEM_PROMPT } from './prompt';
@@ -15,6 +16,7 @@ interface ProcessorEvent {
 
 const RAW_ARTICLES_BUCKET = process.env.RAW_ARTICLES_BUCKET ?? '';
 const PROCESSED_ARTICLES_BUCKET = process.env.PROCESSED_ARTICLES_BUCKET ?? '';
+const DIGESTS_BUCKET = process.env.DIGESTS_BUCKET ?? '';
 const CONCURRENCY = 5; // parallel Bedrock invocations — respects on-demand TPM limits
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -65,11 +67,15 @@ export const handler = async (event: ProcessorEvent): Promise<ProcessResult> => 
   const rawArticles = await loadRawArticles(event.rawS3Keys);
   const unique = deduplicateById(rawArticles);
 
+  // Pre-filter articles already included in a previous digest — skip Bedrock for these
+  const seenIds = await loadSeenIds(DIGESTS_BUCKET, date);
+  const unseen = unique.filter((a) => !seenIds.has(a.id));
+
   console.warn(
-    `[processor] model=${MODEL_ID} raw=${rawArticles.length} unique=${unique.length} date=${date}`,
+    `[processor] model=${MODEL_ID} raw=${rawArticles.length} unique=${unique.length} unseen=${unseen.length} date=${date}`,
   );
 
-  const analyzed = await processBatch(unique);
+  const analyzed = await processBatch(unseen);
 
   const s3Key = `processed/${date}/${processedAt.replace(/[:.]/g, '-')}.json`;
   await putJsonToS3(PROCESSED_ARTICLES_BUCKET, s3Key, analyzed);

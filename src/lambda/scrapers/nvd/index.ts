@@ -51,19 +51,30 @@ function toNvdDate(d: Date): string {
   return d.toISOString().replace('Z', '');
 }
 
+function getCvssScore(cve: NvdCve): { score: number; severity: string } | null {
+  const v31 = cve.metrics?.cvssMetricV31?.[0];
+  if (v31) return { score: v31.cvssData.baseScore, severity: v31.cvssData.baseSeverity };
+  const v30 = cve.metrics?.cvssMetricV30?.[0];
+  if (v30) return { score: v30.cvssData.baseScore, severity: v30.cvssData.baseSeverity };
+  return null;
+}
+
 // ── Parser (exported for unit tests) ──────────────────────────────────────────
 
 export function parseNvdResponse(data: NvdResponse, scrapedAt: string): RawArticle[] {
   return data.vulnerabilities.map(({ cve }) => {
     const url = `https://nvd.nist.gov/vuln/detail/${cve.id}`;
     const desc = cve.descriptions.find((d) => d.lang === 'en')?.value ?? '';
+    const cvss = getCvssScore(cve);
+    // Prepend the CVSS score so the processor Lambda has it for severity assessment
+    const content = cvss ? `CVSS ${cvss.score} (${cvss.severity}). ${desc}` : desc;
     return {
       id: sha256Hex(url),
       title: cve.id,
       url,
       source: 'NVD',
       sourceType: 'nvd' as const,
-      content: desc,
+      content,
       // NVD dates lack a timezone designator — they are UTC; append Z before parsing.
       publishedAt: new Date(cve.published.endsWith('Z') ? cve.published : cve.published + 'Z').toISOString(),
       scrapedAt,
@@ -81,9 +92,13 @@ const NVD_API_KEY = process.env.NVD_API_KEY ?? '';
 const NVD_PAGE_SIZE = 2000;
 const NVD_BASE_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0';
 
+// Fetch only HIGH (7.0-8.9) and CRITICAL (9.0-10.0) CVEs — MEDIUM and below are excluded at
+// the API level to prevent the processor Lambda from timing out on large NVD batches.
+const NVD_SEVERITIES = ['HIGH', 'CRITICAL'] as const;
+
 async function fetchNvdPage(params: URLSearchParams): Promise<NvdResponse> {
   const url = `${NVD_BASE_URL}?${params.toString()}`;
-  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  const headers: Record<string, string> = { Accept: 'application/json' };
   if (NVD_API_KEY) headers['apiKey'] = NVD_API_KEY;
 
   const resp = await fetch(url, { headers });
@@ -91,12 +106,45 @@ async function fetchNvdPage(params: URLSearchParams): Promise<NvdResponse> {
   return resp.json() as Promise<NvdResponse>;
 }
 
+async function fetchSeverityTier(
+  severity: (typeof NVD_SEVERITIES)[number],
+  pubStartDate: string,
+  pubEndDate: string,
+  scrapedAt: string,
+): Promise<RawArticle[]> {
+  const articles: RawArticle[] = [];
+  const params = new URLSearchParams({
+    pubStartDate,
+    pubEndDate,
+    cvssV3Severity: severity,
+    noRejected: '',
+    resultsPerPage: String(NVD_PAGE_SIZE),
+    startIndex: '0',
+  });
+
+  const firstPage = await fetchNvdPage(params);
+  articles.push(...parseNvdResponse(firstPage, scrapedAt));
+
+  let startIndex = NVD_PAGE_SIZE;
+  while (startIndex < firstPage.totalResults) {
+    if (!NVD_API_KEY) {
+      // Respect unauthenticated rate limit: 5 req / 30s
+      await new Promise((resolve) => setTimeout(resolve, 7000));
+    }
+    params.set('startIndex', String(startIndex));
+    const page = await fetchNvdPage(params);
+    articles.push(...parseNvdResponse(page, scrapedAt));
+    startIndex += NVD_PAGE_SIZE;
+  }
+
+  return articles;
+}
+
 export const handler = async (event: ScraperEvent): Promise<ScrapeResult> => {
   const date = (event.date ?? new Date().toISOString()).slice(0, 10);
   const lookbackHours = event.lookbackHours ?? 48;
   const scrapedAt = new Date().toISOString();
   const errors: string[] = [];
-  const allArticles: RawArticle[] = [];
 
   const sources = await getJsonFromS3<SourcesConfig>(CONFIG_BUCKET, 'sources.json');
   const nvdEnabled = sources.apis.find((a) => a.type === 'nvd')?.enabled ?? false;
@@ -104,34 +152,19 @@ export const handler = async (event: ScraperEvent): Promise<ScrapeResult> => {
     return { sourceType: 'nvd', s3Key: '', articleCount: 0, errors: ['NVD source is disabled in sources.json'] };
   }
 
-  const endDate = new Date();
-  const startDate = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+  const pubEndDate = toNvdDate(new Date());
+  const pubStartDate = toNvdDate(new Date(Date.now() - lookbackHours * 60 * 60 * 1000));
 
-  try {
-    const baseParams = new URLSearchParams({
-      pubStartDate: toNvdDate(startDate),
-      pubEndDate: toNvdDate(endDate),
-      resultsPerPage: String(NVD_PAGE_SIZE),
-      startIndex: '0',
-    });
+  const allArticles: RawArticle[] = [];
 
-    const firstPage = await fetchNvdPage(baseParams);
-    allArticles.push(...parseNvdResponse(firstPage, scrapedAt));
-
-    // Paginate if needed (rare for 48h windows)
-    let startIndex = NVD_PAGE_SIZE;
-    while (startIndex < firstPage.totalResults) {
-      if (!NVD_API_KEY) {
-        // Respect unauthenticated rate limit: 5 req / 30s
-        await new Promise((resolve) => setTimeout(resolve, 7000));
-      }
-      baseParams.set('startIndex', String(startIndex));
-      const page = await fetchNvdPage(baseParams);
-      allArticles.push(...parseNvdResponse(page, scrapedAt));
-      startIndex += NVD_PAGE_SIZE;
+  for (const severity of NVD_SEVERITIES) {
+    try {
+      const articles = await fetchSeverityTier(severity, pubStartDate, pubEndDate, scrapedAt);
+      allArticles.push(...articles);
+      console.log(`[nvd-scraper] severity=${severity} count=${articles.length}`);
+    } catch (err) {
+      errors.push(`NVD ${severity}: ${err instanceof Error ? err.message : String(err)}`);
     }
-  } catch (err) {
-    errors.push(`NVD: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const s3Key = `raw/${date}/nvd/${scrapedAt.replace(/[:.]/g, '-')}.json`;

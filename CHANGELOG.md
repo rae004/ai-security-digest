@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.2] - 2026-04-22
+
+### Fixed
+
+- Pre-filter seen article IDs in the processor Lambda before invoking Bedrock — articles already included in a previous digest are skipped entirely, eliminating redundant Bedrock calls regardless of scrape volume
+- Scraper lookback window reduced from 48 hours to 26 hours (24h + 2h drift buffer) via Step Functions payload, preventing re-scraping of the previous day's articles on every daily run
+- NVD scraper now filters to HIGH (≥ 7.0) and CRITICAL (≥ 9.0) CVEs at the API level via `cvssV3Severity`, eliminating 70-80% of NVD volume before it reaches the processor Lambda; rejected/withdrawn CVEs excluded via `noRejected`
+
+### Changed
+
+- Moved seen-IDs logic (`loadSeenIds`, `saveSeenIds`) to `src/lambda/shared/seen-ids.ts` so both the processor and filter Lambdas share one implementation
+- NVD `parseNvdResponse` prepends the CVSS score and severity label to article content (`CVSS 9.8 (CRITICAL). <description>`) so the processor Lambda has structured severity context for Bedrock
+
+---
+
 ## [1.0.1] - 2026-04-21
 
 ### Fixed

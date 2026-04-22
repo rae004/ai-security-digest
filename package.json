@@ -1,6 +1,6 @@
 {
   "name": "ai-security-digest",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "bin": {
     "ai-security-digest": "bin/app.js"
   },

@@ -28,11 +28,17 @@ describe('ProcessorStack', () => {
       'ProcessedBucket',
       'mock-processed-articles-bucket',
     );
+    const digestsBucket = s3.Bucket.fromBucketName(
+      mockDeps,
+      'DigestsBucket',
+      'mock-digests-bucket',
+    );
 
     stack = new ProcessorStack(app, 'TestProcessorStack', {
       env,
       rawArticlesBucket,
       processedArticlesBucket,
+      digestsBucket,
     });
 
     Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
