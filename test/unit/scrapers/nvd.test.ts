@@ -32,8 +32,11 @@ const NVD_RESPONSE: NvdResponse = {
         id: 'CVE-2026-54321',
         published: '2026-04-17T20:00:00.000',
         lastModified: '2026-04-18T08:00:00.000',
-        descriptions: [{ lang: 'en', value: 'A medium severity XSS vulnerability.' }],
+        descriptions: [{ lang: 'en', value: 'A high severity SQL injection vulnerability.' }],
         references: [],
+        metrics: {
+          cvssMetricV30: [{ cvssData: { baseScore: 7.5, baseSeverity: 'HIGH' } }],
+        },
       },
     },
   ],
@@ -63,8 +66,16 @@ describe('parseNvdResponse', () => {
     expect(articles[0].url).toBe('https://nvd.nist.gov/vuln/detail/CVE-2026-12345');
   });
 
-  it('uses English description as content', () => {
-    expect(articles[0].content).toBe('A critical RCE vulnerability in ExampleLib before 2.3.1.');
+  it('prepends CVSS score and severity to content for CVEs with a v3.1 score', () => {
+    expect(articles[0].content).toBe(
+      'CVSS 9.8 (CRITICAL). A critical RCE vulnerability in ExampleLib before 2.3.1.',
+    );
+  });
+
+  it('prepends CVSS score and severity to content for CVEs with a v3.0 score', () => {
+    expect(articles[1].content).toBe(
+      'CVSS 7.5 (HIGH). A high severity SQL injection vulnerability.',
+    );
   });
 
   it('sets sourceType to nvd', () => {
@@ -99,7 +110,7 @@ describe('parseNvdResponse', () => {
     expect(parseNvdResponse(EMPTY_RESPONSE, SCRAPED_AT)).toHaveLength(0);
   });
 
-  it('handles CVE with no description gracefully', () => {
+  it('uses raw description as content when no CVSS score is present', () => {
     const response: NvdResponse = {
       ...EMPTY_RESPONSE,
       totalResults: 1,
@@ -109,14 +120,36 @@ describe('parseNvdResponse', () => {
             id: 'CVE-2026-99999',
             published: '2026-04-18T00:00:00.000',
             lastModified: '2026-04-18T00:00:00.000',
-            descriptions: [],
+            descriptions: [{ lang: 'en', value: 'Newly published, not yet scored.' }],
             references: [],
           },
         },
       ],
     };
     const result = parseNvdResponse(response, SCRAPED_AT);
-    expect(result).toHaveLength(1);
-    expect(result[0].content).toBe('');
+    expect(result[0].content).toBe('Newly published, not yet scored.');
+  });
+
+  it('handles CVE with no description gracefully', () => {
+    const response: NvdResponse = {
+      ...EMPTY_RESPONSE,
+      totalResults: 1,
+      vulnerabilities: [
+        {
+          cve: {
+            id: 'CVE-2026-88888',
+            published: '2026-04-18T00:00:00.000',
+            lastModified: '2026-04-18T00:00:00.000',
+            descriptions: [],
+            references: [],
+            metrics: {
+              cvssMetricV31: [{ cvssData: { baseScore: 8.1, baseSeverity: 'HIGH' } }],
+            },
+          },
+        },
+      ],
+    };
+    const result = parseNvdResponse(response, SCRAPED_AT);
+    expect(result[0].content).toBe('CVSS 8.1 (HIGH). ');
   });
 });
