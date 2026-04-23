@@ -1,5 +1,12 @@
 # AI Security Digest
 
+[![PR Checks](https://github.com/rae004/ai-security-digest/actions/workflows/pr.yml/badge.svg)](https://github.com/rae004/ai-security-digest/actions/workflows/pr.yml)
+[![codecov](https://codecov.io/gh/rae004/ai-security-digest/branch/main/graph/badge.svg)](https://codecov.io/gh/rae004/ai-security-digest)
+[![Version](https://img.shields.io/github/package-json/v/rae004/ai-security-digest?color=blue&label=version)](CHANGELOG.md)
+[![Node.js](https://img.shields.io/badge/node-22-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![AWS CDK](https://img.shields.io/badge/AWS_CDK-2.x-FF9900?logo=amazonaws&logoColor=white)](https://docs.aws.amazon.com/cdk)
+
 A fully serverless daily email digest pipeline for AI and security intelligence. It scrapes curated sources, uses AWS Bedrock (Claude Sonnet 4.6) to summarize and triage findings by relevance and severity, and delivers a formatted report via Amazon SES — every morning at 06:00 UTC.
 
 ---
