@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2026-04-23
+
+### Added
+
+- README status badges: PR Checks (GitHub Actions), Codecov coverage, dynamic version (auto-updates from `package.json` on main), Node.js, TypeScript, AWS CDK
+- Codecov coverage upload in the PR Checks workflow — test job now runs with `--coverage` and uploads results via `codecov/codecov-action@v4`
+
+---
+
 ## [1.0.2] - 2026-04-22
 
 ### Fixed
