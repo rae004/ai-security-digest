@@ -1,6 +1,21 @@
 import { createHash } from 'crypto';
 
-import { parseRssXml, sha256Hex, stripHtml } from '../../../src/lambda/scrapers/rss/index';
+// ── Mock s3-client before importing handler ────────────────────────────────────
+
+const mockGetJson = jest.fn();
+const mockPutJson = jest.fn();
+
+jest.mock('../../../src/lambda/shared/s3-client', () => ({
+  getJsonFromS3: (...args: unknown[]): unknown => mockGetJson(...args),
+  putJsonToS3: (...args: unknown[]): unknown => mockPutJson(...args),
+}));
+
+// ── Set env vars before module import (module-level constants) ─────────────────
+process.env.CONFIG_BUCKET = 'config-bucket';
+process.env.RAW_ARTICLES_BUCKET = 'raw-bucket';
+
+import { handler, parseRssXml, sha256Hex, stripHtml } from '../../../src/lambda/scrapers/rss/index';
+import type { SourcesConfig } from '../../../src/lambda/shared/types';
 
 const SCRAPED_AT = '2026-04-18T12:00:00.000Z';
 
@@ -175,5 +190,137 @@ describe('parseRssXml (edge cases)', () => {
   it('two items with different URLs get different ids', () => {
     const articles = parseRssXml(RSS2_XML, 'Test Feed', SCRAPED_AT);
     expect(articles[0].id).not.toBe(articles[1].id);
+  });
+});
+
+// ── RSS handler ────────────────────────────────────────────────────────────────
+
+// A minimal RSS 2.0 feed with one item published recently enough to pass the cutoff
+function makeRss2Xml(pubDate: string): string {
+  return `<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Security Blog</title>
+    <item>
+      <title>Handler Test Article</title>
+      <link>https://blog.example.com/handler-test</link>
+      <description>Handler test description.</description>
+      <pubDate>${pubDate}</pubDate>
+    </item>
+  </channel>
+</rss>`;
+}
+
+const SOURCES_ONE_ENABLED: SourcesConfig = {
+  rss: [{ name: 'Security Blog', url: 'https://blog.example.com/feed', enabled: true }],
+  apis: [],
+  social: [],
+};
+
+const SOURCES_ALL_DISABLED: SourcesConfig = {
+  rss: [{ name: 'Security Blog', url: 'https://blog.example.com/feed', enabled: false }],
+  apis: [],
+  social: [],
+};
+
+const SOURCES_TWO_ENABLED: SourcesConfig = {
+  rss: [
+    { name: 'Blog A', url: 'https://blog-a.example.com/feed', enabled: true },
+    { name: 'Blog B', url: 'https://blog-b.example.com/feed', enabled: true },
+  ],
+  apis: [],
+  social: [],
+};
+
+describe('RSS handler', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn();
+  });
+
+  it('processes zero sources when all rss sources are disabled', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ALL_DISABLED);
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.sourceType).toBe('rss');
+    expect(result.articleCount).toBe(0);
+    expect(result.errors).toHaveLength(0);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('fetches enabled sources, filters by cutoff and writes to S3', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ONE_ENABLED);
+    const recentDate = new Date(Date.now() - 10 * 60 * 60 * 1000).toUTCString();
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      text: async () => makeRss2Xml(recentDate),
+    });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', lookbackHours: 48 });
+    expect(result.sourceType).toBe('rss');
+    expect(result.articleCount).toBe(1);
+    expect(result.s3Key).toMatch(/^raw\/2026-04-18\/rss\//);
+    expect(result.errors).toHaveLength(0);
+    expect(mockPutJson).toHaveBeenCalledWith('raw-bucket', result.s3Key, expect.any(Array));
+  });
+
+  it('filters out articles older than the lookback window', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ONE_ENABLED);
+    const oldDate = new Date(Date.now() - 72 * 60 * 60 * 1000).toUTCString();
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      text: async () => makeRss2Xml(oldDate),
+    });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', lookbackHours: 48 });
+    expect(result.articleCount).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('captures per-source errors without throwing', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ONE_ENABLED);
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/Security Blog.*ECONNREFUSED/);
+    expect(result.articleCount).toBe(0);
+  });
+
+  it('captures non-ok HTTP responses as errors', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ONE_ENABLED);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 404 });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/Security Blog.*HTTP 404/);
+  });
+
+  it('aggregates articles from multiple enabled sources', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_TWO_ENABLED);
+    const recentDate = new Date(Date.now() - 5 * 60 * 60 * 1000).toUTCString();
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ ok: true, text: async () => makeRss2Xml(recentDate) })
+      .mockResolvedValueOnce({ ok: true, text: async () => makeRss2Xml(recentDate) });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', lookbackHours: 48 });
+    // Each source contributes 1 article — but they share the same URL so sha256 IDs match.
+    // The handler does NOT deduplicate — it just appends. Both items have same URL so same id.
+    expect(result.articleCount).toBe(2);
+  });
+
+  it('uses event.date for the S3 key', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ONE_ENABLED);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, text: async () => '<rss/>' });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-03-10' });
+    expect(result.s3Key).toMatch(/^raw\/2026-03-10\/rss\//);
   });
 });
