@@ -33,7 +33,6 @@ process.env.SSM_RECIPIENTS_PARAM = '/digest/recipients';
 
 // ── Import handler after mocks ─────────────────────────────────────────────────
 
-// eslint-disable-next-line import/first
 import { handler } from '../../../src/lambda/notifier/index';
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -79,7 +78,7 @@ const DIGEST_S3_KEY = 'digests/2026-04-18/2026-04-18T13-00-00-000Z.json';
 
 // ── Test helpers ───────────────────────────────────────────────────────────────
 
-function setupHappyPath() {
+function setupHappyPath(): void {
   mockGetJson.mockResolvedValue(SAMPLE_DIGEST);
   // SSM: first call = sender, second = recipients
   mockSsm.send

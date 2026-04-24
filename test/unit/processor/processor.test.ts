@@ -37,7 +37,7 @@ process.env.DIGESTS_BUCKET = 'digests-bucket';
 
 import { deduplicateById, handler } from '../../../src/lambda/processor/index';
 import { invokeModel } from '../../../src/lambda/processor/bedrock-client';
-import type { AnalyzedArticle, RawArticle } from '../../../src/lambda/shared/types';
+import type { RawArticle } from '../../../src/lambda/shared/types';
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -181,15 +181,6 @@ describe('invokeModel', () => {
 const BEDROCK_ANALYSIS_JSON =
   '{"summary":"Test summary","severity":"HIGH","relevance_category":"AI_GENERAL","relevance_score":75,"reasoning":"Relevant AI security paper.","affected_products":["SomeProduct"]}';
 
-function makeAnalyzedArticle(id: string): AnalyzedArticle {
-  return {
-    ...makeArticle(id),
-    summary: 'Test summary',
-    severity: 'HIGH',
-    relevance: { category: 'AI_GENERAL', score: 75, reasoning: 'Relevant.' },
-    affectedProducts: ['SomeProduct'],
-  };
-}
 
 describe('processor handler', () => {
   let setTimeoutSpy: jest.SpyInstance;

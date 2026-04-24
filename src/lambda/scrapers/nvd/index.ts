@@ -161,7 +161,7 @@ export const handler = async (event: ScraperEvent): Promise<ScrapeResult> => {
     try {
       const articles = await fetchSeverityTier(severity, pubStartDate, pubEndDate, scrapedAt);
       allArticles.push(...articles);
-      console.log(`[nvd-scraper] severity=${severity} count=${articles.length}`);
+      console.warn(`[nvd-scraper] severity=${severity} count=${articles.length}`);
     } catch (err) {
       errors.push(`NVD ${severity}: ${err instanceof Error ? err.message : String(err)}`);
     }
