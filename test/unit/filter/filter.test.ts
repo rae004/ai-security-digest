@@ -1,5 +1,10 @@
+// ── Set env vars BEFORE filter module is imported (module-level constants) ─────
+process.env.PROCESSED_ARTICLES_BUCKET = 'processed-bucket';
+process.env.DIGESTS_BUCKET = 'digests-bucket';
+
 import {
   filterAndSort,
+  handler,
   INCLUDE_THRESHOLD,
   loadSeenIds,
   saveSeenIds,
@@ -264,5 +269,126 @@ describe('saveSeenIds', () => {
   it('writes an empty array without throwing', async () => {
     mockPutJson.mockResolvedValue(undefined);
     await expect(saveSeenIds('my-bucket', '2026-04-19', [])).resolves.not.toThrow();
+  });
+});
+
+// ── filter handler ─────────────────────────────────────────────────────────────
+
+function makeAnalyzedArticle(
+  id: string,
+  overrides: { severity?: AnalyzedArticle['severity']; category?: AnalyzedArticle['relevance']['category'] } = {},
+): AnalyzedArticle {
+  return {
+    id,
+    title: `Article ${id}`,
+    url: `https://example.com/${id}`,
+    source: 'Test',
+    sourceType: 'rss',
+    content: 'content',
+    publishedAt: '2026-04-18T08:00:00.000Z',
+    scrapedAt: '2026-04-18T12:00:00.000Z',
+    summary: 'summary',
+    severity: overrides.severity ?? 'HIGH',
+    relevance: { category: overrides.category ?? 'AI_GENERAL', score: 75, reasoning: 'test' },
+    affectedProducts: [],
+  };
+}
+
+describe('filter handler', () => {
+  beforeEach(() => {
+    mockGetJson.mockReset();
+    mockPutJson.mockReset();
+  });
+
+  it('returns a FilterResult with s3Key, included and excluded counts', async () => {
+    const articles = [
+      makeAnalyzedArticle('inc-1', { severity: 'HIGH', category: 'AI_GENERAL' }),
+      makeAnalyzedArticle('exc-1', { severity: 'LOW', category: 'AI_GENERAL' }),
+    ];
+    mockGetJson
+      .mockResolvedValueOnce(articles)      // getJsonFromS3 for processed articles
+      .mockRejectedValue(new Error('NoSuchKey')); // loadSeenIds lookback misses
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', processedS3Key: 'processed/key.json' });
+    expect(result.included).toBe(1);
+    expect(result.excluded).toBe(1);
+    expect(result.s3Key).toMatch(/^digests\/2026-04-18\//);
+  });
+
+  it('reads processed articles from PROCESSED_ARTICLES_BUCKET', async () => {
+    mockGetJson
+      .mockResolvedValueOnce([makeAnalyzedArticle('a')])
+      .mockRejectedValue(new Error('NoSuchKey'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    await handler({ date: '2026-04-18', processedS3Key: 'processed/key.json' });
+    expect(mockGetJson).toHaveBeenCalledWith('processed-bucket', 'processed/key.json');
+  });
+
+  it('writes the digest to DIGESTS_BUCKET', async () => {
+    mockGetJson
+      .mockResolvedValueOnce([makeAnalyzedArticle('a')])
+      .mockRejectedValue(new Error('NoSuchKey'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', processedS3Key: 'processed/key.json' });
+    expect(mockPutJson).toHaveBeenCalledWith('digests-bucket', result.s3Key, expect.objectContaining({
+      date: '2026-04-18',
+      totalIncluded: 1,
+    }));
+  });
+
+  it('excludes articles already in seenIds and counts them in excluded', async () => {
+    const articles = [
+      makeAnalyzedArticle('seen-id', { severity: 'CRITICAL', category: 'BEDROCK_AGENTCORE' }),
+      makeAnalyzedArticle('new-id', { severity: 'HIGH', category: 'AI_GENERAL' }),
+    ];
+    mockGetJson
+      .mockResolvedValueOnce(articles)                           // processed articles
+      .mockResolvedValueOnce(['seen-id'])                        // loadSeenIds day -1
+      .mockRejectedValue(new Error('NoSuchKey'));                // remaining days
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', processedS3Key: 'processed/key.json' });
+    expect(result.included).toBe(1);
+    // 1 excluded by filter + 1 already sent = 2 total excluded
+    expect(result.excluded).toBe(1);
+  });
+
+  it('saves seen IDs after filtering', async () => {
+    const articles = [
+      makeAnalyzedArticle('inc-1', { severity: 'HIGH', category: 'AI_GENERAL' }),
+    ];
+    mockGetJson
+      .mockResolvedValueOnce(articles)
+      .mockRejectedValue(new Error('NoSuchKey'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    await handler({ date: '2026-04-18', processedS3Key: 'processed/key.json' });
+    // second putJson call is saveSeenIds
+    expect(mockPutJson).toHaveBeenCalledWith('digests-bucket', 'sent-ids/2026-04-18.json', ['inc-1']);
+  });
+
+  it('handles empty analyzed article list', async () => {
+    mockGetJson
+      .mockResolvedValueOnce([])
+      .mockRejectedValue(new Error('NoSuchKey'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', processedS3Key: 'processed/empty.json' });
+    expect(result.included).toBe(0);
+    expect(result.excluded).toBe(0);
+  });
+
+  it('derives date from current time when event.date is omitted', async () => {
+    mockGetJson
+      .mockResolvedValueOnce([])
+      .mockRejectedValue(new Error('NoSuchKey'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const result = await handler({ processedS3Key: 'processed/key.json' });
+    expect(result.s3Key).toContain(today);
   });
 });

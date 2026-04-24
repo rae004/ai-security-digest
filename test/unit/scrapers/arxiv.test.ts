@@ -1,6 +1,21 @@
 import { createHash } from 'crypto';
 
-import { parseArxivXml } from '../../../src/lambda/scrapers/arxiv/index';
+// ── Mock s3-client before importing handler ────────────────────────────────────
+
+const mockGetJson = jest.fn();
+const mockPutJson = jest.fn();
+
+jest.mock('../../../src/lambda/shared/s3-client', () => ({
+  getJsonFromS3: (...args: unknown[]): unknown => mockGetJson(...args),
+  putJsonToS3: (...args: unknown[]): unknown => mockPutJson(...args),
+}));
+
+// ── Set env vars before module import (module-level constants) ─────────────────
+process.env.CONFIG_BUCKET = 'config-bucket';
+process.env.RAW_ARTICLES_BUCKET = 'raw-bucket';
+
+import { handler, parseArxivXml } from '../../../src/lambda/scrapers/arxiv/index';
+import type { SourcesConfig } from '../../../src/lambda/shared/types';
 
 const SCRAPED_AT = '2026-04-18T12:00:00.000Z';
 
@@ -114,5 +129,108 @@ describe('parseArxivXml', () => {
       const articles = parseArxivXml(ARXIV_EMPTY_FEED, SCRAPED_AT);
       expect(articles).toHaveLength(0);
     });
+  });
+});
+
+// ── ArXiv handler ─────────────────────────────────────────────────────────────
+
+const SOURCES_ENABLED: SourcesConfig = {
+  rss: [],
+  apis: [{ name: 'ArXiv', type: 'arxiv', enabled: true }],
+  social: [],
+};
+
+const SOURCES_DISABLED: SourcesConfig = {
+  rss: [],
+  apis: [{ name: 'ArXiv', type: 'arxiv', enabled: false }],
+  social: [],
+};
+
+// A minimal valid ArXiv Atom feed with one entry published recently enough to pass the cutoff
+function makeArxivFeedXml(publishedIso: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2404.99999v1</id>
+    <title>AI Security Test Paper</title>
+    <summary>Abstract text here.</summary>
+    <published>${publishedIso}</published>
+  </entry>
+</feed>`;
+}
+
+describe('ArXiv handler', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn();
+  });
+
+  it('returns disabled result when ArXiv source is disabled', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_DISABLED);
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.sourceType).toBe('arxiv');
+    expect(result.s3Key).toBe('');
+    expect(result.articleCount).toBe(0);
+    expect(result.errors[0]).toMatch(/disabled/i);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('fetches ArXiv feed, filters by cutoff and writes to S3', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ENABLED);
+    // Published 10 hours ago — well within 48h lookback
+    const recentPublished = new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString();
+    const xml = makeArxivFeedXml(recentPublished);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, text: async () => xml });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', lookbackHours: 48 });
+    expect(result.sourceType).toBe('arxiv');
+    expect(result.articleCount).toBe(1);
+    expect(result.s3Key).toMatch(/^raw\/2026-04-18\/arxiv\//);
+    expect(result.errors).toHaveLength(0);
+    expect(mockPutJson).toHaveBeenCalledWith('raw-bucket', result.s3Key, expect.any(Array));
+  });
+
+  it('filters out articles older than the lookback window', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ENABLED);
+    // Published 72 hours ago — outside 48h lookback
+    const oldPublished = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const xml = makeArxivFeedXml(oldPublished);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, text: async () => xml });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18', lookbackHours: 48 });
+    expect(result.articleCount).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('captures ArXiv API errors without throwing', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ENABLED);
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/ArXiv.*Network error/);
+    expect(result.articleCount).toBe(0);
+  });
+
+  it('captures non-ok HTTP responses as errors', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ENABLED);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 503 });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-04-18' });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/ArXiv API HTTP 503/);
+  });
+
+  it('uses event.date for the S3 key', async () => {
+    mockGetJson.mockResolvedValue(SOURCES_ENABLED);
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, text: async () => ARXIV_EMPTY_FEED });
+    mockPutJson.mockResolvedValue(undefined);
+
+    const result = await handler({ date: '2026-01-20' });
+    expect(result.s3Key).toMatch(/^raw\/2026-01-20\/arxiv\//);
   });
 });
