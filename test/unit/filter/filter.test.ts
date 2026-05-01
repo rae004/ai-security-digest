@@ -8,6 +8,7 @@ import {
   INCLUDE_THRESHOLD,
   loadSeenIds,
   saveSeenIds,
+  SCORE_FLOOR,
   SEVERITY_RANK,
   shouldInclude,
   sortArticles,
@@ -51,6 +52,45 @@ describe('SEVERITY_RANK', () => {
     expect(SEVERITY_RANK.HIGH).toBeGreaterThan(SEVERITY_RANK.MEDIUM);
     expect(SEVERITY_RANK.MEDIUM).toBeGreaterThan(SEVERITY_RANK.LOW);
     expect(SEVERITY_RANK.LOW).toBeGreaterThan(SEVERITY_RANK.INFO);
+  });
+});
+
+// ── SCORE_FLOOR ───────────────────────────────────────────────────────────────
+
+describe('SCORE_FLOOR', () => {
+  it('has expected values for all categories', () => {
+    expect(SCORE_FLOOR.BEDROCK_AGENTCORE).toBe(0);
+    expect(SCORE_FLOOR.AI_GENERAL).toBe(30);
+    expect(SCORE_FLOOR.AWS_SECURITY).toBe(50);
+    expect(SCORE_FLOOR.OTHER).toBe(0);
+  });
+});
+
+// ── shouldInclude — score floor enforcement ─────────────────────────────────
+
+describe('shouldInclude — score floor enforcement', () => {
+  it('excludes AI_GENERAL below floor (score=20, HIGH)', () => {
+    expect(shouldInclude(makeArticle({ severity: 'HIGH', category: 'AI_GENERAL', score: 20 }))).toBe(false);
+  });
+
+  it('includes AI_GENERAL at floor (score=30, HIGH)', () => {
+    expect(shouldInclude(makeArticle({ severity: 'HIGH', category: 'AI_GENERAL', score: 30 }))).toBe(true);
+  });
+
+  it('excludes AWS_SECURITY below floor (score=40, CRITICAL)', () => {
+    expect(shouldInclude(makeArticle({ severity: 'CRITICAL', category: 'AWS_SECURITY', score: 40 }))).toBe(false);
+  });
+
+  it('includes AWS_SECURITY at floor (score=50, CRITICAL)', () => {
+    expect(shouldInclude(makeArticle({ severity: 'CRITICAL', category: 'AWS_SECURITY', score: 50 }))).toBe(true);
+  });
+
+  it('BEDROCK_AGENTCORE always passes even with score=0', () => {
+    expect(shouldInclude(makeArticle({ severity: 'INFO', category: 'BEDROCK_AGENTCORE', score: 0 }))).toBe(true);
+  });
+
+  it('OTHER still requires CRITICAL even with high score', () => {
+    expect(shouldInclude(makeArticle({ severity: 'HIGH', category: 'OTHER', score: 99 }))).toBe(false);
   });
 });
 
@@ -191,6 +231,17 @@ describe('filterAndSort', () => {
     expect(INCLUDE_THRESHOLD.AI_GENERAL).toBe(SEVERITY_RANK.MEDIUM);
     expect(INCLUDE_THRESHOLD.AWS_SECURITY).toBe(SEVERITY_RANK.HIGH);
     expect(INCLUDE_THRESHOLD.OTHER).toBe(SEVERITY_RANK.CRITICAL);
+  });
+
+  it('excludes articles passing severity but failing score floor', () => {
+    const articles = [
+      makeArticle({ severity: 'HIGH', category: 'AWS_SECURITY', score: 30 }),  // passes severity, fails score floor
+      makeArticle({ severity: 'CRITICAL', category: 'BEDROCK_AGENTCORE', score: 0 }), // passes both
+    ];
+    const result = filterAndSort(articles);
+    expect(result.included).toHaveLength(1);
+    expect(result.included[0].relevance.category).toBe('BEDROCK_AGENTCORE');
+    expect(result.excluded).toBe(1);
   });
 });
 

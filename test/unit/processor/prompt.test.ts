@@ -44,6 +44,10 @@ describe('SYSTEM_PROMPT', () => {
   it('is a non-empty string', () => {
     expect(SYSTEM_PROMPT.length).toBeGreaterThan(100);
   });
+
+  it('contains infrastructure exclusion guidance', () => {
+    expect(SYSTEM_PROMPT).toMatch(/infrastructure software/i);
+  });
 });
 
 // ── buildUserMessage ───────────────────────────────────────────────────────────
