@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.4](https://github.com/rae004/ai-security-digest/compare/v1.0.3...v1.0.4) (2026-05-01)
+
+
+### Bug Fixes
+
+* **lint:** resolve all ESLint errors in handler tests and NVD scraper ([f8282c2](https://github.com/rae004/ai-security-digest/commit/f8282c2ce164ec670505992e0ae24cb006c808f6))
+* tighten AWS_SECURITY category tagging and add relevance score floor ([13c7996](https://github.com/rae004/ai-security-digest/commit/13c7996926e925d5a2c62748cca83894591a238a))
+* tighten category tagging, add score floor, adopt release-please ([0c28cf8](https://github.com/rae004/ai-security-digest/commit/0c28cf81981779a30561d64ae81a7948760a69f8))
+
 ## [1.0.3] - 2026-04-23
 
 ### Added
