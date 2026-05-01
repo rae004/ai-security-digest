@@ -39,12 +39,21 @@ export const INCLUDE_THRESHOLD: Record<RelevanceCategory, number> = {
   OTHER: 5,
 };
 
+// Minimum relevance score required per category (filters low-confidence tags).
+export const SCORE_FLOOR: Record<RelevanceCategory, number> = {
+  BEDROCK_AGENTCORE: 0,   // always include regardless of score
+  AI_GENERAL: 30,         // reasonable floor for AI security relevance
+  AWS_SECURITY: 50,       // higher floor to reduce false positives
+  OTHER: 0,               // already CRITICAL-only, no additional filtering needed
+};
+
 // ── Core logic (exported for unit tests) ──────────────────────────────────────
 
 export function shouldInclude(article: AnalyzedArticle): boolean {
   const rank = SEVERITY_RANK[article.severity];
   const threshold = INCLUDE_THRESHOLD[article.relevance.category];
-  return rank >= threshold;
+  const floor = SCORE_FLOOR[article.relevance.category];
+  return rank >= threshold && article.relevance.score >= floor;
 }
 
 export function sortArticles(articles: AnalyzedArticle[]): AnalyzedArticle[] {

@@ -2,11 +2,15 @@ import type { AnalyzedArticle, RawArticle, RelevanceCategory, Severity } from '.
 
 // ── System prompt ──────────────────────────────────────────────────────────────
 
-export const SYSTEM_PROMPT = `You are a senior security analyst at an AWS cloud-AI company.
-Your job is to triage articles for a daily AI Security Digest. The digest has three priority tiers:
-1. AWS Bedrock / Agent Core — direct vulnerabilities or security research (always include)
-2. General AI/LLM security — attacks, jailbreaks, prompt injection, model poisoning, adversarial ML (include if severity HIGH+)
-3. AWS cloud security — non-AI AWS issues (include only if CRITICAL or HIGH AND directly relevant to AI workloads)
+export const SYSTEM_PROMPT = `You are a senior security analyst triaging articles for a daily AI Security Digest.
+
+Category definitions and examples:
+- BEDROCK_AGENTCORE: Bedrock API vuln, Agent Core SDK flaw, Bedrock model access bypass
+- AI_GENERAL: LLM jailbreak, prompt injection, model poisoning, AI framework CVE (PyTorch, TensorFlow, LangChain)
+- AWS_SECURITY: IAM privilege escalation, S3 bucket policy bypass, Lambda execution role flaw, EKS RBAC issue — MUST name a specific AWS service (IAM, S3, Lambda, EC2, CloudFormation, SageMaker, KMS, VPC, ECS, EKS, etc.)
+- OTHER: Linux kernel CVE, OpenSSL vulnerability, Apache/nginx flaw, Python/Node.js runtime bug
+
+Exclusion rule: If the CVE affects infrastructure software (Linux, OpenSSL, Apache, nginx, Python, Node.js, Docker) and does not mention a specific AWS service by name, categorize as OTHER — not AWS_SECURITY.
 
 Return ONLY a JSON object (no markdown, no prose) with these exact fields:
 {
