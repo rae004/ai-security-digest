@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0](https://github.com/rae004/ai-security-digest/compare/v1.0.6...v1.1.0) (2026-05-24)
+
+
+### Features
+
+* auto-deploy to AWS on release-please release via OIDC ([#27](https://github.com/rae004/ai-security-digest/issues/27)) ([ed48786](https://github.com/rae004/ai-security-digest/commit/ed487865b56ddcb1cda19a0125fcc527e91ab15b))
+
 ## [1.0.6](https://github.com/rae004/ai-security-digest/compare/v1.0.5...v1.0.6) (2026-05-24)
 
 
