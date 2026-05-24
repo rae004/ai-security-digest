@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.5](https://github.com/rae004/ai-security-digest/compare/v1.0.4...v1.0.5) (2026-05-24)
+
+
+### Bug Fixes
+
+* patch brace-expansion DoS (GHSA-jxxr-4gwj-5jf2) and bump TS doc reference ([#22](https://github.com/rae004/ai-security-digest/issues/22)) ([72fd14f](https://github.com/rae004/ai-security-digest/commit/72fd14f160ff4ab095abf1f3262ec03e4479ba8e))
+
 ## [1.0.4](https://github.com/rae004/ai-security-digest/compare/v1.0.3...v1.0.4) (2026-05-01)
 
 
