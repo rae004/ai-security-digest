@@ -5,6 +5,7 @@
 *.js.map
 node_modules
 coverage
+.idea/
 
 # CDK asset staging directory
 .cdk.staging
