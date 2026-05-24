@@ -268,6 +268,22 @@ aws ssm put-parameter \
   --overwrite
 ```
 
+### Continuous deployment
+
+Pushes to `main` flow through release-please. When a release PR merges and a tag is cut, `.github/workflows/release-please.yml` invokes the reusable `deploy.yml`, which assumes a GitHub-trusted IAM role via OIDC (no long-lived AWS keys) and runs `cdk deploy --all` against the prod account.
+
+The GitHub-trusted role itself lives in `AiSecurityDigestDeploymentStack` and only carries `sts:AssumeRole` on the four `cdk-hnb659fds-*` bootstrap roles — actual deploy authority stays with the bootstrap roles. To enable CD on a fresh checkout:
+
+1. Deploy the bootstrap stack once from a developer machine:
+   ```bash
+   npm run cdk deploy AiSecurityDigestDeploymentStack -- --profile YOUR_PROFILE
+   ```
+   Copy the `GithubDeployRoleArn` output.
+2. In repo Settings → Environments, create `prod`, restrict deployments to `main`, and add an environment secret `AWS_DEPLOY_ROLE_ARN` with the ARN from step 1.
+3. Trigger `Deploy` from the Actions tab with an empty `ref` to validate OIDC end-to-end. After that passes, subsequent release-please releases deploy automatically.
+
+If the account has never trusted GitHub Actions before, pass `createOidcProvider: true` to `DeploymentStack` in `bin/app.ts` for the first deploy, then flip it back to `false`.
+
 ---
 
 ## Configuration
