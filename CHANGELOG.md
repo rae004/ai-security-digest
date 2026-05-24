@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0](https://github.com/rae004/ai-security-digest/compare/v1.1.0...v1.2.0) (2026-05-24)
+
+
+### Features
+
+* add read-only GithubDiffRole for PR cdk diff checks ([#30](https://github.com/rae004/ai-security-digest/issues/30)) ([ff78e5e](https://github.com/rae004/ai-security-digest/commit/ff78e5e382244e88b68c3b2ceab5e398235f4fae))
+
 ## [1.1.0](https://github.com/rae004/ai-security-digest/compare/v1.0.6...v1.1.0) (2026-05-24)
 
 
