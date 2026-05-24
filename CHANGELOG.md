@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.6](https://github.com/rae004/ai-security-digest/compare/v1.0.5...v1.0.6) (2026-05-24)
+
+
+### Bug Fixes
+
+* regenerate package-lock.json to restore sync with package.json ([#24](https://github.com/rae004/ai-security-digest/issues/24)) ([1321661](https://github.com/rae004/ai-security-digest/commit/1321661c25d318dbf10286480542d90f324d3d1b))
+
 ## [1.0.5](https://github.com/rae004/ai-security-digest/compare/v1.0.4...v1.0.5) (2026-05-24)
 
 
