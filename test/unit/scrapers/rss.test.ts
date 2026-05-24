@@ -98,6 +98,15 @@ describe('stripHtml', () => {
     expect(stripHtml('AT&amp;T &lt;test&gt;')).toBe('AT&T <test>');
   });
 
+  it('does not double-unescape: &amp;lt; stays as &lt;, not <', () => {
+    // Regression for CodeQL js/double-escaping (GHSA-style). Source content
+    // that was already entity-escaped once (e.g., a feed deliberately showing
+    // `&lt;script&gt;` as visible text) must not be silently decoded into
+    // executable-looking markup by a second unescape pass.
+    expect(stripHtml('&amp;lt;script&amp;gt;')).toBe('&lt;script&gt;');
+    expect(stripHtml('&amp;amp;')).toBe('&amp;');
+  });
+
   it('collapses multiple whitespace characters to a single space', () => {
     expect(stripHtml('  a   b  ')).toBe('a b');
   });

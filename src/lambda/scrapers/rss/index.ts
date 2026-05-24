@@ -57,15 +57,22 @@ export function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
+// Single-pass entity table. All entities (known + unknown + numeric) are
+// resolved in ONE regex replace, so each entity in the source string is
+// consumed exactly once. This is what prevents double-unescaping:
+// `&amp;lt;` cannot turn into `<`, because the second decode pass that
+// would mistake `&lt;` for the lt entity never runs.
+const HTML_ENTITY_MAP: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+};
+
 export function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#\d+;/gi, ' ')
-    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/&(?:#\d+|[a-z]+);/gi, (match) => HTML_ENTITY_MAP[match.toLowerCase()] ?? ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
