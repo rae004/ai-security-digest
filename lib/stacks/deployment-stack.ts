@@ -38,6 +38,7 @@ export interface DeploymentStackProps extends cdk.StackProps {
  */
 export class DeploymentStack extends cdk.Stack {
   public readonly githubDeployRole: iam.Role;
+  public readonly githubDiffRole: iam.Role;
 
   constructor(scope: Construct, id: string, props: DeploymentStackProps) {
     super(scope, id, props);
@@ -118,10 +119,59 @@ export class DeploymentStack extends cdk.Stack {
       true,
     );
 
+    // ── Read-only role for PR `cdk diff` checks ────────────────────────────
+    // Distinct role with a narrower trust + policy than GithubDeployRole.
+    // Trusted on the `pull_request` OIDC sub-claim (same-repo PRs only — fork
+    // PRs use `pull_request_target`, which we deliberately don't trust). Only
+    // permission needed is to assume the CDK lookup role; CDK uses it to fetch
+    // the deployed template for diffing. No environment is required on the
+    // GitHub side, so the diff job can run without an env opt-in.
+    this.githubDiffRole = new iam.Role(this, 'GithubDiffRole', {
+      roleName: 'github-diff-pr',
+      description: 'Assumed by GitHub Actions to run cdk diff on pull requests',
+      assumedBy: new iam.FederatedPrincipal(
+        githubOidcProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            'token.actions.githubusercontent.com:sub': `repo:${githubRepo}:pull_request`,
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+      maxSessionDuration: cdk.Duration.hours(1),
+    });
+
+    const lookupRoleArn = `arn:aws:iam::${this.account}:role/cdk-hnb659fds-lookup-role-${this.account}-${this.region}`;
+
+    this.githubDiffRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'AssumeCdkLookupRole',
+        actions: ['sts:AssumeRole'],
+        resources: [lookupRoleArn],
+      }),
+    );
+
+    this.githubDiffRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'ReadBootstrapVersion',
+        actions: ['ssm:GetParameter'],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`,
+        ],
+      }),
+    );
+
     new cdk.CfnOutput(this, 'GithubDeployRoleArn', {
       value: this.githubDeployRole.roleArn,
       description: 'Set this as the AWS_DEPLOY_ROLE_ARN secret on the prod GitHub Environment',
       exportName: 'AiSecurityDigest-GithubDeployRoleArn',
+    });
+
+    new cdk.CfnOutput(this, 'GithubDiffRoleArn', {
+      value: this.githubDiffRole.roleArn,
+      description: 'Set this as the AWS_DIFF_ROLE_ARN repo secret for the cdk-diff PR check',
+      exportName: 'AiSecurityDigest-GithubDiffRoleArn',
     });
 
     new cdk.CfnOutput(this, 'GithubOidcProviderArn', {
