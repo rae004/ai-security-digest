@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1](https://github.com/rae004/ai-security-digest/compare/v1.2.0...v1.2.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* **rss:** resolve double-unescape in stripHtml (CodeQL js/double-escaping) ([#33](https://github.com/rae004/ai-security-digest/issues/33)) ([3d6c3d2](https://github.com/rae004/ai-security-digest/commit/3d6c3d2b49a5c75da19c44140b8ff84cc3c12947))
+
 ## [1.2.0](https://github.com/rae004/ai-security-digest/compare/v1.1.0...v1.2.0) (2026-05-24)
 
 
