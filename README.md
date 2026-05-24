@@ -150,7 +150,7 @@ The filter Lambda maintains a 7-day rolling window of sent article IDs in `diges
 
 | Layer | Technology |
 |---|---|
-| Language | TypeScript 5.9 |
+| Language | TypeScript 6.0 |
 | Runtime | Node.js 22.x (all Lambdas) |
 | IaC | AWS CDK v2 (`aws-cdk-lib` ^2.248) |
 | AI | AWS Bedrock — Claude Sonnet 4.6 (`us.anthropic.claude-sonnet-4-6`) |
