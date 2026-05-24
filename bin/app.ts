@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
+import { DeploymentStack } from '../lib/stacks/deployment-stack';
 import { IngestionStack } from '../lib/stacks/ingestion-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
 import { OrchestrationStack } from '../lib/stacks/orchestration-stack';
@@ -19,6 +20,16 @@ const scheduleHour   = (app.node.tryGetContext('ai-security-digest:scheduleHour'
 const scheduleMinute = (app.node.tryGetContext('ai-security-digest:scheduleMinute')   as string) ?? '0';
 
 const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region };
+
+// Deploys independently of the rest of the app. Owns the GitHub OIDC trust
+// and the role GitHub Actions assumes to run `cdk deploy`. Bootstrapped once
+// from a developer laptop, then the CI pipeline takes over for everything else.
+new DeploymentStack(app, 'AiSecurityDigestDeploymentStack', {
+  env,
+  description: 'AI Security Digest — GitHub OIDC trust + CI deploy role',
+  envName: 'prod',
+  githubRepo: 'rae004/ai-security-digest',
+});
 
 const storageStack = new StorageStack(app, 'AiSecurityDigestStorageStack', {
   env,
