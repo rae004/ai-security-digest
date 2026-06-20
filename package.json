@@ -13,10 +13,10 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
-    "@aws-sdk/client-s3": "^3.1057.0",
-    "@aws-sdk/client-ses": "^3.1057.0",
-    "@aws-sdk/client-ssm": "^3.1057.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1063.0",
+    "@aws-sdk/client-s3": "^3.1063.0",
+    "@aws-sdk/client-ses": "^3.1063.0",
+    "@aws-sdk/client-ssm": "^3.1063.0",
     "@types/jest": "^30",
     "@types/node": "^25.8.0",
     "@typescript-eslint/eslint-plugin": "^8.60.0",
