@@ -20,9 +20,9 @@ export class ProcessorStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ProcessorStackProps) {
     super(scope, id, props);
 
-    // Bedrock inference profile for Claude Sonnet 4.6 — cross-region (US)
+    // Bedrock inference profile for Claude Haiku 4.5 — cross-region (US)
     // Inference profile ARNs include the account ID (unlike foundation model ARNs)
-    const BEDROCK_MODEL_ARN = `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6`;
+    const BEDROCK_MODEL_ARN = `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`;
 
     const { rawArticlesBucket, processedArticlesBucket, digestsBucket } = props;
 
@@ -67,7 +67,7 @@ export class ProcessorStack extends cdk.Stack {
         actions: ['bedrock:InvokeModel'],
         resources: [
           BEDROCK_MODEL_ARN,
-          'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6',
+          'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
         ],
       }),
     );

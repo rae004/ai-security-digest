@@ -98,8 +98,8 @@ describe('ProcessorStack', () => {
           Match.objectLike({
             Action: 'bedrock:InvokeModel',
             Resource: Match.arrayWith([
-              'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-6',
-              'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6',
+              'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0',
+              'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
             ]),
           }),
         ]),
