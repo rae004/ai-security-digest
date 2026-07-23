@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0](https://github.com/rae004/ai-security-digest/compare/v1.2.1...v1.3.0) (2026-07-23)
+
+
+### Features
+
+* **processor:** add cost guardrails and switch to Claude Haiku 4.5 ([#68](https://github.com/rae004/ai-security-digest/issues/68)) ([d748198](https://github.com/rae004/ai-security-digest/commit/d748198c596708a08c5fd9aae2dbc184349e592b))
+
 ## [1.2.1](https://github.com/rae004/ai-security-digest/compare/v1.2.0...v1.2.1) (2026-05-24)
 
 
