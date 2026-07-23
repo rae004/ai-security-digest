@@ -14,14 +14,25 @@ const BASE_ARTICLE: RawArticle = {
   scrapedAt: '2026-04-18T12:00:00.000Z',
 };
 
-const VALID_RESPONSE = JSON.stringify({
+const SECOND_ARTICLE: RawArticle = {
+  ...BASE_ARTICLE,
+  id: 'def456',
+  title: 'Prompt injection technique bypasses LLM guardrails',
+  url: 'https://example.com/prompt-injection',
+  content: 'Researchers demonstrate a new prompt injection technique.',
+};
+
+const VALID_ENTRY = {
+  index: 1,
   summary: 'A critical RCE vulnerability in AWS Bedrock Agent Core SDK allows attackers to execute arbitrary code. All versions prior to 1.2.3 are affected.',
   severity: 'CRITICAL',
   relevance_category: 'BEDROCK_AGENTCORE',
   relevance_score: 98,
   reasoning: 'Direct RCE in Bedrock Agent Core is highest severity and directly in scope.',
   affected_products: ['AWS Bedrock', 'Agent Core SDK'],
-});
+};
+
+const VALID_RESPONSE = JSON.stringify([VALID_ENTRY]);
 
 // ── SYSTEM_PROMPT ──────────────────────────────────────────────────────────────
 
@@ -48,15 +59,25 @@ describe('SYSTEM_PROMPT', () => {
   it('contains infrastructure exclusion guidance', () => {
     expect(SYSTEM_PROMPT).toMatch(/infrastructure software/i);
   });
+
+  it('instructs the model to echo the article index', () => {
+    expect(SYSTEM_PROMPT).toContain('"index"');
+  });
 });
 
 // ── buildUserMessage ───────────────────────────────────────────────────────────
 
 describe('buildUserMessage', () => {
-  const msg = buildUserMessage(BASE_ARTICLE);
+  const msg = buildUserMessage([BASE_ARTICLE, SECOND_ARTICLE]);
 
-  it('includes the article title', () => {
+  it('includes each article title', () => {
     expect(msg).toContain(BASE_ARTICLE.title);
+    expect(msg).toContain(SECOND_ARTICLE.title);
+  });
+
+  it('numbers articles sequentially from 1', () => {
+    expect(msg).toContain('### Article 1');
+    expect(msg).toContain('### Article 2');
   });
 
   it('includes the source and sourceType', () => {
@@ -64,18 +85,19 @@ describe('buildUserMessage', () => {
     expect(msg).toContain(BASE_ARTICLE.sourceType);
   });
 
-  it('includes the URL', () => {
+  it('includes each URL', () => {
     expect(msg).toContain(BASE_ARTICLE.url);
+    expect(msg).toContain(SECOND_ARTICLE.url);
   });
 
   it('includes the content', () => {
     expect(msg).toContain('remote code execution');
   });
 
-  it('truncates content to 4000 characters maximum', () => {
+  it('truncates each article content to 4000 characters maximum', () => {
     const longContent = 'x'.repeat(8000);
     const bigArticle = { ...BASE_ARTICLE, content: longContent };
-    const output = buildUserMessage(bigArticle);
+    const output = buildUserMessage([bigArticle]);
     // The content part should be truncated; the total message will be longer due to
     // title/source/url lines, but content itself is capped at 4000
     expect(output).not.toContain('x'.repeat(4001));
@@ -85,7 +107,7 @@ describe('buildUserMessage', () => {
 // ── parseAnalysis — happy path ─────────────────────────────────────────────────
 
 describe('parseAnalysis (valid response)', () => {
-  const result = parseAnalysis(BASE_ARTICLE, VALID_RESPONSE);
+  const [result] = parseAnalysis([BASE_ARTICLE], VALID_RESPONSE);
 
   it('preserves original article fields', () => {
     expect(result.id).toBe(BASE_ARTICLE.id);
@@ -119,51 +141,83 @@ describe('parseAnalysis (valid response)', () => {
   });
 });
 
+// ── parseAnalysis — batch join ─────────────────────────────────────────────────
+
+describe('parseAnalysis (batch join)', () => {
+  it('joins entries to articles by echoed index regardless of order', () => {
+    const response = JSON.stringify([
+      { ...VALID_ENTRY, index: 2, summary: 'Second article summary here.' },
+      { ...VALID_ENTRY, index: 1, summary: 'First article summary here.' },
+    ]);
+    const [first, second] = parseAnalysis([BASE_ARTICLE, SECOND_ARTICLE], response);
+    expect(first.summary).toBe('First article summary here.');
+    expect(second.summary).toBe('Second article summary here.');
+  });
+
+  it('falls back for articles missing from the response', () => {
+    const [first, second] = parseAnalysis([BASE_ARTICLE, SECOND_ARTICLE], VALID_RESPONSE);
+    expect(first.severity).toBe('CRITICAL');
+    expect(second.severity).toBe('INFO');
+    expect(second.relevance.reasoning).toContain('No analysis returned');
+  });
+
+  it('ignores response entries with unknown or missing index', () => {
+    const response = JSON.stringify([
+      { ...VALID_ENTRY, index: 99 },
+      { ...VALID_ENTRY, index: undefined },
+    ]);
+    const [result] = parseAnalysis([BASE_ARTICLE], response);
+    expect(result.severity).toBe('INFO');
+  });
+});
+
 // ── parseAnalysis — edge cases ─────────────────────────────────────────────────
+
+function parseSingle(entry: Record<string, unknown>): ReturnType<typeof parseAnalysis>[number] {
+  return parseAnalysis([BASE_ARTICLE], JSON.stringify([{ ...entry, index: 1 }]))[0];
+}
 
 describe('parseAnalysis (edge cases)', () => {
   it('strips markdown code fences before parsing', () => {
     const wrapped = '```json\n' + VALID_RESPONSE + '\n```';
-    const result = parseAnalysis(BASE_ARTICLE, wrapped);
+    const [result] = parseAnalysis([BASE_ARTICLE], wrapped);
     expect(result.severity).toBe('CRITICAL');
   });
 
   it('falls back gracefully on invalid JSON', () => {
-    const result = parseAnalysis(BASE_ARTICLE, 'not json at all');
+    const [result] = parseAnalysis([BASE_ARTICLE], 'not json at all');
     expect(result.severity).toBe('INFO');
     expect(result.relevance.category).toBe('OTHER');
     expect(result.relevance.score).toBe(0);
     expect(result.affectedProducts).toEqual([]);
   });
 
-  it('clamps relevance_score to 0–100', () => {
-    const over = parseAnalysis(BASE_ARTICLE, JSON.stringify({ ...JSON.parse(VALID_RESPONSE), relevance_score: 150 }));
-    expect(over.relevance.score).toBe(100);
+  it('falls back gracefully when the response is a JSON object, not an array', () => {
+    const [result] = parseAnalysis([BASE_ARTICLE], JSON.stringify(VALID_ENTRY));
+    expect(result.severity).toBe('INFO');
+  });
 
-    const under = parseAnalysis(BASE_ARTICLE, JSON.stringify({ ...JSON.parse(VALID_RESPONSE), relevance_score: -10 }));
-    expect(under.relevance.score).toBe(0);
+  it('clamps relevance_score to 0–100', () => {
+    expect(parseSingle({ ...VALID_ENTRY, relevance_score: 150 }).relevance.score).toBe(100);
+    expect(parseSingle({ ...VALID_ENTRY, relevance_score: -10 }).relevance.score).toBe(0);
   });
 
   it('defaults severity to LOW for unrecognised value', () => {
-    const bad = parseAnalysis(BASE_ARTICLE, JSON.stringify({ ...JSON.parse(VALID_RESPONSE), severity: 'EXTREME' }));
-    expect(bad.severity).toBe('LOW');
+    expect(parseSingle({ ...VALID_ENTRY, severity: 'EXTREME' }).severity).toBe('LOW');
   });
 
   it('defaults category to OTHER for unrecognised value', () => {
-    const bad = parseAnalysis(BASE_ARTICLE, JSON.stringify({ ...JSON.parse(VALID_RESPONSE), relevance_category: 'UNKNOWN' }));
-    expect(bad.relevance.category).toBe('OTHER');
+    expect(parseSingle({ ...VALID_ENTRY, relevance_category: 'UNKNOWN' }).relevance.category).toBe('OTHER');
   });
 
   it('handles missing affected_products gracefully', () => {
-    const noProducts = JSON.parse(VALID_RESPONSE) as Record<string, unknown>;
+    const noProducts: Record<string, unknown> = { ...VALID_ENTRY };
     delete noProducts['affected_products'];
-    const result = parseAnalysis(BASE_ARTICLE, JSON.stringify(noProducts));
-    expect(result.affectedProducts).toEqual([]);
+    expect(parseSingle(noProducts).affectedProducts).toEqual([]);
   });
 
   it('filters non-string entries from affected_products', () => {
-    const mixed = { ...JSON.parse(VALID_RESPONSE), affected_products: ['ValidProduct', 42, null, 'Another'] };
-    const result = parseAnalysis(BASE_ARTICLE, JSON.stringify(mixed));
-    expect(result.affectedProducts).toEqual(['ValidProduct', 'Another']);
+    const mixed = { ...VALID_ENTRY, affected_products: ['ValidProduct', 42, null, 'Another'] };
+    expect(parseSingle(mixed).affectedProducts).toEqual(['ValidProduct', 'Another']);
   });
 });

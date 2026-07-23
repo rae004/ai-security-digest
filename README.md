@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](./.github/dependabot.yml)
 
-A fully serverless daily email digest pipeline for AI and security intelligence. It scrapes curated sources, uses AWS Bedrock (Claude Sonnet 4.6) to summarize and triage findings by relevance and severity, and delivers a formatted report via Amazon SES — every morning at 06:00 UTC.
+A fully serverless daily email digest pipeline for AI and security intelligence. It scrapes curated sources, uses AWS Bedrock (Claude Haiku 4.5) to summarize and triage findings by relevance and severity, and delivers a formatted report via Amazon SES — every morning at 06:00 UTC.
 
 ---
 
@@ -28,7 +28,7 @@ Step Functions Standard Workflow
   │           │
   │           ▼  raw JSON → S3 raw-articles/
   ├── Lambda: processor
-  │     └── Bedrock Claude Sonnet 4.6 — summarize + triage each article
+  │     └── Bedrock Claude Haiku 4.5 — summarize + triage each article
   │           │
   │           ▼  analyzed JSON → S3 processed-articles/
   ├── Lambda: filter
@@ -104,7 +104,7 @@ Sources are driven by `config/sources.json`, seeded to S3 on deploy. What requir
 
 ## AI Triage
 
-Each article is analyzed by Bedrock Claude Sonnet 4.6 and tagged with:
+Each article is analyzed by Bedrock Claude Haiku 4.5 and tagged with:
 
 ```typescript
 interface AnalyzedArticle {
@@ -140,6 +140,14 @@ Articles are included in the digest if their severity meets or exceeds the minim
 
 Included articles are sorted by severity descending, then by relevance score descending.
 
+### Cost Guardrails
+
+Added after a July 2026 NVD bulk-publish event (~740 CVEs in one hour) caused a $4.77 Bedrock day and a processor timeout:
+
+- **Keyword pre-filter (NVD only)** — sub-critical CVEs (CVSS < 9.0) that mention no AI/AWS relevance keyword are dropped before Bedrock; curated RSS/ArXiv sources always pass
+- **Volume cap** — at most 500 articles per run reach Bedrock; curated sources always survive the cut, NVD articles compete by CVSS score descending
+- **Batched analysis** — articles are sent to Bedrock 10 per request; the model echoes each article's index so results join back deterministically, with a per-article fallback for any missing entry
+
 ### Deduplication
 
 The filter Lambda maintains a 7-day rolling window of sent article IDs in `digests/sent-ids/YYYY-MM-DD.json`. Articles included in a previous digest are silently skipped, preventing duplicates across daily runs.
@@ -153,7 +161,7 @@ The filter Lambda maintains a 7-day rolling window of sent article IDs in `diges
 | Language | TypeScript 6.0 |
 | Runtime | Node.js 22.x (all Lambdas) |
 | IaC | AWS CDK v2 (`aws-cdk-lib` ^2.248) |
-| AI | AWS Bedrock — Claude Sonnet 4.6 (`us.anthropic.claude-sonnet-4-6`) |
+| AI | AWS Bedrock — Claude Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) |
 | Orchestration | AWS Step Functions (Express Workflow) |
 | Scheduler | EventBridge Scheduler (L2) |
 | Email | Amazon SES |
@@ -386,7 +394,7 @@ All tests must pass and `npm run lint` must be clean before deploying. CDK NAG `
 |---|---|
 | Lambda (all 7 functions, daily runs) | ~$0.10 |
 | Step Functions Standard Workflow | ~$0.01 |
-| Bedrock Claude Sonnet 4.6 | ~$2–8 (varies with article volume) |
+| Bedrock Claude Haiku 4.5 | ~$1–3 (varies with article volume) |
 | S3 (4 buckets + access logs) | ~$0.05 |
 | Amazon SES | ~$0.00 (under free tier for low volume) |
 | EventBridge Scheduler | ~$0.00 |

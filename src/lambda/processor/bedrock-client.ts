@@ -4,7 +4,7 @@ import {
   ThrottlingException,
 } from '@aws-sdk/client-bedrock-runtime';
 
-export const MODEL_ID = 'us.anthropic.claude-sonnet-4-6';
+export const MODEL_ID = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
 
@@ -26,7 +26,7 @@ export async function invokeModel(systemPrompt: string, userMessage: string): Pr
           system: [{ text: systemPrompt }],
           messages: [{ role: 'user', content: [{ text: userMessage }] }],
           inferenceConfig: {
-            maxTokens: 1024,
+            maxTokens: 4096, // batched requests return one JSON object per article
             temperature: 0, // deterministic — we want consistent JSON
           },
         }),

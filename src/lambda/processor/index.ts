@@ -2,6 +2,7 @@ import { getJsonFromS3, putJsonToS3 } from '../shared/s3-client';
 import { loadSeenIds } from '../shared/seen-ids';
 import type { AnalyzedArticle, ProcessResult, RawArticle } from '../shared/types';
 import { invokeModel, MODEL_ID } from './bedrock-client';
+import { capArticles, preFilterNvd } from './pre-filter';
 import { buildUserMessage, parseAnalysis, SYSTEM_PROMPT } from './prompt';
 
 // ── Event ──────────────────────────────────────────────────────────────────────
@@ -18,6 +19,10 @@ const RAW_ARTICLES_BUCKET = process.env.RAW_ARTICLES_BUCKET ?? '';
 const PROCESSED_ARTICLES_BUCKET = process.env.PROCESSED_ARTICLES_BUCKET ?? '';
 const DIGESTS_BUCKET = process.env.DIGESTS_BUCKET ?? '';
 const CONCURRENCY = 5; // parallel Bedrock invocations — respects on-demand TPM limits
+const BATCH_SIZE = 10; // articles per Bedrock invocation
+// Hard ceiling on Bedrock work per run — protects cost and the Lambda timeout
+// when an upstream source floods (e.g. an NVD bulk CVE publication).
+const MAX_ARTICLES_PER_RUN = 500;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -39,19 +44,23 @@ export function deduplicateById(articles: RawArticle[]): RawArticle[] {
   });
 }
 
-async function analyzeArticle(article: RawArticle): Promise<AnalyzedArticle> {
-  const responseText = await invokeModel(SYSTEM_PROMPT, buildUserMessage(article));
-  return parseAnalysis(article, responseText);
+async function analyzeBatch(articles: RawArticle[]): Promise<AnalyzedArticle[]> {
+  const responseText = await invokeModel(SYSTEM_PROMPT, buildUserMessage(articles));
+  return parseAnalysis(articles, responseText);
 }
 
 async function processBatch(articles: RawArticle[]): Promise<AnalyzedArticle[]> {
   const results: AnalyzedArticle[] = [];
-  for (let i = 0; i < articles.length; i += CONCURRENCY) {
-    const batch = articles.slice(i, i + CONCURRENCY);
-    const analyzed = await Promise.all(batch.map(analyzeArticle));
-    results.push(...analyzed);
-    // Brief pause between batches to avoid throttling on large inputs
-    if (i + CONCURRENCY < articles.length) {
+  const waveSize = BATCH_SIZE * CONCURRENCY;
+  for (let i = 0; i < articles.length; i += waveSize) {
+    const wave: Promise<AnalyzedArticle[]>[] = [];
+    for (let j = i; j < Math.min(i + waveSize, articles.length); j += BATCH_SIZE) {
+      wave.push(analyzeBatch(articles.slice(j, j + BATCH_SIZE)));
+    }
+    const analyzed = await Promise.all(wave);
+    results.push(...analyzed.flat());
+    // Brief pause between waves to avoid throttling on large inputs
+    if (i + waveSize < articles.length) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
@@ -71,11 +80,16 @@ export const handler = async (event: ProcessorEvent): Promise<ProcessResult> => 
   const seenIds = await loadSeenIds(DIGESTS_BUCKET, date);
   const unseen = unique.filter((a) => !seenIds.has(a.id));
 
+  // Cost guardrails: drop irrelevant sub-critical NVD CVEs, then cap total volume
+  const { kept, droppedCount } = preFilterNvd(unseen);
+  const capped = capArticles(kept, MAX_ARTICLES_PER_RUN);
+
   console.warn(
-    `[processor] model=${MODEL_ID} raw=${rawArticles.length} unique=${unique.length} unseen=${unseen.length} date=${date}`,
+    `[processor] model=${MODEL_ID} raw=${rawArticles.length} unique=${unique.length} unseen=${unseen.length} ` +
+      `keywordDropped=${droppedCount} capDropped=${kept.length - capped.length} toAnalyze=${capped.length} date=${date}`,
   );
 
-  const analyzed = await processBatch(unseen);
+  const analyzed = await processBatch(capped);
 
   const s3Key = `processed/${date}/${processedAt.replace(/[:.]/g, '-')}.json`;
   await putJsonToS3(PROCESSED_ARTICLES_BUCKET, s3Key, analyzed);
