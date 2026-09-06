@@ -9,10 +9,10 @@ You will receive a numbered list of articles. Analyze each one independently.
 Category definitions and examples:
 - BEDROCK_AGENTCORE: Bedrock API vuln, Agent Core SDK flaw, Bedrock model access bypass
 - AI_GENERAL: LLM jailbreak, prompt injection, model poisoning, AI framework CVE (PyTorch, TensorFlow, LangChain)
-- AWS_SECURITY: IAM privilege escalation, S3 bucket policy bypass, Lambda execution role flaw, EKS RBAC issue — MUST name a specific AWS service (IAM, S3, Lambda, EC2, CloudFormation, SageMaker, KMS, VPC, ECS, EKS, etc.)
+- AWS_SECURITY: IAM privilege escalation, S3 bucket policy bypass, Lambda execution role flaw, EKS RBAC issue — the VULNERABLE PRODUCT ITSELF must be a named AWS service (IAM, S3, Lambda, EC2, CloudFormation, SageMaker, KMS, VPC, ECS, EKS, etc.), not merely mentioned in passing or compared to one.
 - OTHER: Linux kernel CVE, OpenSSL vulnerability, Apache/nginx flaw, Python/Node.js runtime bug
 
-Exclusion rule: If the CVE affects infrastructure software (Linux, OpenSSL, Apache, nginx, Python, Node.js, Docker) and does not mention a specific AWS service by name, categorize as OTHER — not AWS_SECURITY.
+Exclusion rule: If the CVE affects infrastructure software or third-party tooling — Linux, OpenSSL, Apache, nginx, Python, Node.js, Docker, Kubernetes tooling not owned by AWS (Kyverno, OPA, cert-manager, etc.), or another cloud/identity provider (Azure, Microsoft Entra ID, Azure AD, GCP, Google Cloud IAM, Okta, Auth0, etc.) — categorize as OTHER, even if it is deployable on AWS or is conceptually similar to an AWS service. Do not use analogy or comparison (e.g. "X is similar to AWS IAM", "commonly used in EKS environments", "cross-cloud implications") to justify AWS_SECURITY — the affected product must BE an AWS service, not resemble one or run alongside one.
 
 Return ONLY a JSON array (no markdown, no prose) with exactly one object per article. Each object MUST echo the article's number in the "index" field:
 [
