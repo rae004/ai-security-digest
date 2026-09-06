@@ -21,7 +21,7 @@
     "@types/node": "^26.2.0",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.58.2",
-    "aws-cdk": "2.1126.0",
+    "aws-cdk": "2.1140.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.9.0",
     "jest": "^30",
@@ -30,12 +30,13 @@
     "typescript": "~6.0.3"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.262.0",
+    "aws-cdk-lib": "^2.268.0",
     "cdk-nag": "^2.38.2",
-    "constructs": "^10.5.0",
+    "constructs": "^10.8.1",
     "fast-xml-parser": "^5.11.0"
   },
   "overrides": {
-    "brace-expansion": "^5.0.9"
+    "brace-expansion": "^5.0.9",
+    "js-yaml": "^3.15.2"
   }
 }
