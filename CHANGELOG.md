@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.1](https://github.com/rae004/ai-security-digest/compare/v1.3.0...v1.3.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **processor:** tighten AWS_SECURITY classification prompt ([#100](https://github.com/rae004/ai-security-digest/issues/100)) ([f50c937](https://github.com/rae004/ai-security-digest/commit/f50c937aa223437f7da709e95ce18da72199c3f6))
+
 ## [1.3.0](https://github.com/rae004/ai-security-digest/compare/v1.2.1...v1.3.0) (2026-07-23)
 
 
