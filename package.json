@@ -10,7 +10,8 @@
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "eval:golden": "npm run build && node scripts/eval-golden-set.js"
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1127.0",
