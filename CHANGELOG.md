@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0](https://github.com/rae004/ai-security-digest/compare/v1.3.1...v1.4.0) (2026-09-27)
+
+
+### Features
+
+* **eval:** add golden-set classification eval script ([#119](https://github.com/rae004/ai-security-digest/issues/119)) ([83abb02](https://github.com/rae004/ai-security-digest/commit/83abb020cdae97536cce70740de4aa4103337625))
+
 ## [1.3.1](https://github.com/rae004/ai-security-digest/compare/v1.3.0...v1.3.1) (2026-09-06)
 
 
