@@ -14,10 +14,10 @@
     "eval:golden": "npm run build && node scripts/eval-golden-set.js"
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1127.0",
-    "@aws-sdk/client-s3": "^3.1127.0",
-    "@aws-sdk/client-ses": "^3.1127.0",
-    "@aws-sdk/client-ssm": "^3.1127.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1136.0",
+    "@aws-sdk/client-s3": "^3.1136.0",
+    "@aws-sdk/client-ses": "^3.1136.0",
+    "@aws-sdk/client-ssm": "^3.1136.0",
     "@types/jest": "^30",
     "@types/node": "^26.4.1",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
