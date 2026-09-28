@@ -45,7 +45,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test -- --coverage
-      - uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.0
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
@@ -83,7 +83,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Configure AWS credentials via OIDC (read-only diff role)
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_DIFF_ROLE_ARN }}
           role-session-name: gha-diff-${{ github.run_id }}
