@@ -19,7 +19,7 @@
     "@aws-sdk/client-ses": "^3.1127.0",
     "@aws-sdk/client-ssm": "^3.1127.0",
     "@types/jest": "^30",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.2",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.58.2",
     "aws-cdk": "2.1140.0",
