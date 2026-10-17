@@ -20,7 +20,7 @@
     "@aws-sdk/client-ssm": "^3.1136.0",
     "@types/jest": "^30",
     "@types/node": "^26.6.2",
-    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
     "@typescript-eslint/parser": "^8.58.2",
     "aws-cdk": "2.1143.0",
     "esbuild": "^0.28.2",
