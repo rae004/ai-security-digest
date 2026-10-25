@@ -64,10 +64,7 @@ export function sortArticles(articles: AnalyzedArticle[]): AnalyzedArticle[] {
   });
 }
 
-export function filterAndSort(articles: AnalyzedArticle[]): {
-  included: AnalyzedArticle[];
-  excluded: number;
-} {
+export function filterAndSort(articles: AnalyzedArticle[]): { included: AnalyzedArticle[], excluded: number } {
   const included = sortArticles(articles.filter(shouldInclude));
   return { included, excluded: articles.length - included.length };
 }
