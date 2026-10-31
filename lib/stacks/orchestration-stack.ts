@@ -27,7 +27,7 @@ const SSM_SENDER_PARAM = '/ai-security-digest/sender';
 const SSM_RECIPIENTS_PARAM = '/ai-security-digest/recipients';
 
 export class OrchestrationStack extends cdk.Stack {
-  public readonly stateMachine: sfn.IStateMachine;
+  public readonly stateMachine: sfn.StateMachine;
   public readonly filterFn: lambda.IFunction;
   public readonly notifierFn: lambda.IFunction;
 

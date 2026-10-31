@@ -14,10 +14,10 @@ export interface IngestionStackProps extends cdk.StackProps {
 }
 
 export class IngestionStack extends cdk.Stack {
-  public readonly rssScraperFn: lambda.IFunction;
-  public readonly nvdScraperFn: lambda.IFunction;
-  public readonly arxivScraperFn: lambda.IFunction;
-  public readonly xScraperFn: lambda.IFunction;
+  public readonly rssScraperFn: lambda.Function;
+  public readonly nvdScraperFn: lambda.Function;
+  public readonly arxivScraperFn: lambda.Function;
+  public readonly xScraperFn: lambda.Function;
 
   constructor(scope: Construct, id: string, props: IngestionStackProps) {
     super(scope, id, props);
