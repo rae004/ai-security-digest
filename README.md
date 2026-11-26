@@ -2,7 +2,7 @@
 
 [![PR Checks](https://github.com/rae004/ai-security-digest/actions/workflows/pr.yml/badge.svg)](https://github.com/rae004/ai-security-digest/actions/workflows/pr.yml)
 [![codecov](https://codecov.io/gh/rae004/ai-security-digest/branch/main/graph/badge.svg)](https://codecov.io/gh/rae004/ai-security-digest)
-[![Version](https://img.shields.io/github/package-json/v/rae004/ai-security-digest?color=blue&label=version)](CHANGELOG.md)
+[![Version](https://img.shields.io/github/v/release/rae004/ai-security-digest?color=blue&label=version)](https://github.com/rae004/ai-security-digest/releases)
 [![Node.js](https://img.shields.io/badge/node-22-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/github/package-json/dependency-version/rae004/ai-security-digest/dev/typescript?label=TypeScript&logo=typescript&logoColor=white&color=3178c6)](https://www.typescriptlang.org)
 [![AWS CDK](https://img.shields.io/badge/AWS_CDK-2.x-FF9900?logo=amazonaws&logoColor=white)](https://docs.aws.amazon.com/cdk)
@@ -278,7 +278,9 @@ aws ssm put-parameter \
 
 ### Continuous deployment
 
-Pushes to `main` flow through release-please. When a release PR merges and a tag is cut, `.github/workflows/release-please.yml` invokes the reusable `deploy.yml`, which assumes a GitHub-trusted IAM role via OIDC (no long-lived AWS keys) and runs `cdk deploy --all` against the prod account.
+Every PR is squash-merged, so each push to `main` is one commit. `.github/workflows/release.yml` tags that commit directly when its Conventional Commit type calls for a release (`feat` → minor, `fix`/`perf` → patch, `!` or `BREAKING CHANGE:` → major; `chore`, `docs`, `ci` and the rest → no release) and publishes a GitHub Release with generated notes. There is no release PR and no release commit, and the version lives in git tags only: `package.json`'s `version` is not updated, and `CHANGELOG.md` stops at 1.4.0. The PR title becomes the commit message, so it decides the version.
+
+A release then invokes the reusable `deploy.yml`, which waits for approval from the `prod` environment's required reviewer, then assumes a GitHub-trusted IAM role via OIDC (no long-lived AWS keys) and runs `cdk deploy --all` against the prod account.
 
 The GitHub-trusted role itself lives in `AiSecurityDigestDeploymentStack` and only carries `sts:AssumeRole` on the four `cdk-hnb659fds-*` bootstrap roles — actual deploy authority stays with the bootstrap roles. To enable CD on a fresh checkout:
 
@@ -287,8 +289,8 @@ The GitHub-trusted role itself lives in `AiSecurityDigestDeploymentStack` and on
    npm run cdk deploy AiSecurityDigestDeploymentStack -- --profile YOUR_PROFILE
    ```
    Copy the `GithubDeployRoleArn` output.
-2. In repo Settings → Environments, create `prod`, restrict deployments to `main`, and add an environment secret `AWS_DEPLOY_ROLE_ARN` with the ARN from step 1.
-3. Trigger `Deploy` from the Actions tab with an empty `ref` to validate OIDC end-to-end. After that passes, subsequent release-please releases deploy automatically.
+2. In repo Settings → Environments, create `prod`, restrict deployments to `main`, add yourself as a required reviewer, and add an environment secret `AWS_DEPLOY_ROLE_ARN` with the ARN from step 1.
+3. Trigger `Deploy` from the Actions tab with an empty `ref` to validate OIDC end-to-end. After that passes, each release deploys once approved.
 
 If the account has never trusted GitHub Actions before, pass `createOidcProvider: true` to `DeploymentStack` in `bin/app.ts` for the first deploy, then flip it back to `false`.
 

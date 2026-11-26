@@ -3,7 +3,7 @@ name: Deploy
 # Reusable workflow that runs `cdk deploy --all` against the prod account.
 # Two trigger modes:
 #
-#   - workflow_call: invoked from release-please.yml after a tag is cut.
+#   - workflow_call: invoked from release.yml after a tag is cut.
 #     Pass the tag as `ref` so the deployed artifact matches the released
 #     version exactly.
 #
