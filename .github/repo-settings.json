@@ -1,0 +1,8 @@
+{
+  "required_status_checks": [
+    "Lint",
+    "Build",
+    "Test",
+    "Synth"
+  ]
+}
