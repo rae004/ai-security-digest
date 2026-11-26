@@ -1,0 +1,11 @@
+name: TEMP test title check
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  title:
+    uses: rae004/.github/.github/workflows/pr-title.yml@feat/title-check-and-0x-rule
+    with:
+      scripts-ref: feat/title-check-and-0x-rule
