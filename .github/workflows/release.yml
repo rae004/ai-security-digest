@@ -1,18 +1,10 @@
 name: Release
 
-# Every push to main is one squash-merged PR. This workflow tags that commit
-# directly and publishes a GitHub Release for it; there is no release PR and
-# no release commit, so main reads:
-#
-#   feat: awesome feature 1   (tag: v0.1.0)
-#   fix: oops                 (tag: v0.1.1)
-#   chore(deps): bump x       (no tag)
-#
-# The version comes from the Conventional Commit type of every commit since
-# the last tag, biggest change wins: breaking -> major, feat -> minor,
-# fix/perf -> patch, anything else -> no release. Folding in every commit
-# since the last tag means a run that was skipped or failed is picked up by
-# the next one. Rules live in .github/scripts/next_version.py.
+# Releases are cut by the shared workflow in rae004/.github: each push to main
+# is one squash-merged PR, and that commit is tagged directly when its
+# Conventional Commit type calls for a release (feat -> minor, fix/perf ->
+# patch, breaking -> major, anything else -> no release). No release PR, no
+# release commit. Rules and docs: https://github.com/rae004/.github#releases
 #
 # A release then deploys that tag to prod. The `prod` environment's required
 # reviewer pauses the deploy until it is approved.
@@ -24,58 +16,11 @@ on:
 permissions:
   contents: read
 
-# One release at a time, in order. Never cancel a run that may be mid-tag.
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 jobs:
   release:
-    name: Tag and release
-    runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      tag: ${{ steps.release.outputs.tag }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # full history and tags, to find the last release
-
-      - name: Check the version rules
-        run: python3 -m unittest discover .github/scripts
-
-      - name: Tag this commit if it warrants a release
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          git fetch --tags --force --quiet
-          latest=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)
-
-          if [ -n "$latest" ] && git merge-base --is-ancestor HEAD "$latest"; then
-            echo "This commit is already part of $latest; nothing to do."
-            exit 0
-          fi
-
-          if [ -n "$latest" ]; then
-            range="$latest..HEAD"
-            current="${latest#v}"
-          else
-            range="HEAD"
-            current="0.0.0"
-          fi
-
-          next=$(git log --format=%B%x00 "$range" | python3 .github/scripts/next_version.py "$current")
-          if [ -z "$next" ]; then
-            echo "No feat, fix, perf or breaking change since ${latest:-the first commit}; no release."
-            exit 0
-          fi
-
-          gh release create "v$next" --target "$GITHUB_SHA" --title "v$next" --generate-notes
-          echo "tag=v$next" >> "$GITHUB_OUTPUT"
-          echo "Released v$next on $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+    uses: rae004/.github/.github/workflows/release.yml@main
 
   deploy-prod:
     needs: release
