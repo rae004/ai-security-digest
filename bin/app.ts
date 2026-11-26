@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { Aspects } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
 import { DeploymentStack } from '../lib/stacks/deployment-stack';
@@ -97,4 +96,4 @@ const schedulerStack = new SchedulerStack(app, 'AiSecurityDigestSchedulerStack',
 schedulerStack.addDependency(orchestrationStack);
 
 // CDK NAG: AWS Solutions checks on the entire app
-Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+cdk.Validations.of(app).addPlugins(new AwsSolutionsChecks(app, { verbose: true }));

@@ -1,6 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Annotations, Match, Template } from 'aws-cdk-lib/assertions';
-import { Aspects } from 'aws-cdk-lib';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import { AwsSolutionsChecks } from 'cdk-nag';
@@ -22,6 +21,7 @@ describe('ObservabilityStack', () => {
   let app: cdk.App;
   let stack: ObservabilityStack;
   let template: Template;
+  let nagReport: cdk.PolicyValidationPluginReport;
 
   beforeAll(() => {
     app = new cdk.App();
@@ -51,27 +51,19 @@ describe('ObservabilityStack', () => {
       monthlyBudgetUsd: 20,
     });
 
-    Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+    nagReport = new AwsSolutionsChecks(app, { verbose: true }).validateScope(stack);
     template = Template.fromStack(stack);
     app.synth();
   });
 
   // ── CDK NAG ───────────────────────────────────────────────────────────────────
 
-  test('no unsuppressed CDK NAG errors', () => {
-    const errors = Annotations.fromStack(stack).findError(
-      '*',
-      Match.stringLikeRegexp('AwsSolutions-.*'),
-    );
-    expect(errors).toHaveLength(0);
+  test('no unacknowledged CDK NAG errors', () => {
+    expect(nagReport.violations.filter((v) => v.severity === 'error')).toEqual([]);
   });
 
-  test('no unsuppressed CDK NAG warnings', () => {
-    const warnings = Annotations.fromStack(stack).findWarning(
-      '*',
-      Match.stringLikeRegexp('AwsSolutions-.*'),
-    );
-    expect(warnings).toHaveLength(0);
+  test('no unacknowledged CDK NAG warnings', () => {
+    expect(nagReport.violations.filter((v) => v.severity !== 'error')).toEqual([]);
   });
 
   // ── KMS key ───────────────────────────────────────────────────────────────────

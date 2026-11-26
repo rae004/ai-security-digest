@@ -8,7 +8,6 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 // Named Lambda entries give the dashboard/alarm labels meaningful names
@@ -310,14 +309,11 @@ export class ObservabilityStack extends cdk.Stack {
     });
 
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
-    NagSuppressions.addResourceSuppressions(
-      alarmTopic,
-      [
-        {
-          id: 'AwsSolutions-SNS2',
-          reason: 'SNS topic is encrypted with a customer-managed KMS key (AlarmTopicKey).',
-        },
-      ],
+    cdk.Validations.of(alarmTopic).acknowledge(
+      {
+        id: 'AwsSolutions-SNS2',
+        reason: 'SNS topic is encrypted with a customer-managed KMS key (AlarmTopicKey).',
+      },
     );
   }
 }

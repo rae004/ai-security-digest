@@ -5,7 +5,6 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { BundlingOptions, NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct, IConstruct } from 'constructs';
 
 export interface IngestionStackProps extends cdk.StackProps {
@@ -126,25 +125,21 @@ export class IngestionStack extends cdk.Stack {
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
     const scraperFunctions = [rssFn, nvdFn, arxivFn, xFn];
     for (const fn of scraperFunctions) {
-      NagSuppressions.addResourceSuppressions(
-        fn,
-        [
-          {
-            id: 'AwsSolutions-IAM4',
-            reason:
-              'AWSLambdaBasicExecutionRole is required for CloudWatch Logs; no broader managed policy is attached.',
-          },
-          {
-            id: 'AwsSolutions-IAM5',
-            reason:
-              'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
-          },
-          {
-            id: 'AwsSolutions-L1',
-            reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
-          },
-        ],
-        true, // apply to role and inline policy children
+      cdk.Validations.of(fn).acknowledge(
+        {
+          id: 'AwsSolutions-IAM4',
+          reason:
+            'AWSLambdaBasicExecutionRole is required for CloudWatch Logs; no broader managed policy is attached.',
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason:
+            'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
+        },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+        },
       );
     }
 
@@ -154,23 +149,19 @@ export class IngestionStack extends cdk.Stack {
     const bucketDeploymentSingleton = (sourcesDeployment.handlerRole as unknown as IConstruct)
       .node.scope as IConstruct;
 
-    NagSuppressions.addResourceSuppressions(
-      bucketDeploymentSingleton,
-      [
-        {
-          id: 'AwsSolutions-IAM4',
-          reason: 'CDK BucketDeployment custom resource uses AWSLambdaBasicExecutionRole.',
-        },
-        {
-          id: 'AwsSolutions-IAM5',
-          reason: 'CDK BucketDeployment requires S3 wildcard for asset upload.',
-        },
-        {
-          id: 'AwsSolutions-L1',
-          reason: 'CDK BucketDeployment uses a CDK-managed Lambda runtime.',
-        },
-      ],
-      true,
+    cdk.Validations.of(bucketDeploymentSingleton).acknowledge(
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'CDK BucketDeployment custom resource uses AWSLambdaBasicExecutionRole.',
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CDK BucketDeployment requires S3 wildcard for asset upload.',
+      },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'CDK BucketDeployment uses a CDK-managed Lambda runtime.',
+      },
     );
   }
 }
