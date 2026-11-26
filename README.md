@@ -427,3 +427,11 @@ A $20/month AWS Budget alarm is deployed by default.
 - **Agent Core**: upgrade path if the analysis step needs multi-step autonomous reasoning (e.g. CVE deep-dive)
 - **Slack integration**: deliver digest to a Slack channel alongside or instead of email
 - **Web dashboard**: S3-hosted static site for browsing historical digests
+
+## Repo settings
+
+GitHub settings for this repo (merge options, Actions permissions, the branch ruleset) come
+from the shared baseline in [`rae004/.github`](https://github.com/rae004/.github) and are
+applied from there. The only part kept here is
+[`.github/repo-settings.json`](.github/repo-settings.json), which lists the CI jobs that must
+pass before a PR can merge.
