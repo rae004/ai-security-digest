@@ -20,6 +20,9 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Optional fine-grained PAT. PRs opened by a PAT always trigger CI;
+          # falls back to the default token when the secret isn't set.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   deploy-prod:
     needs: release-please
