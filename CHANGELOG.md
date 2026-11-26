@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Releases after 1.4.0 are tagged directly on the merged commit and documented on the
+[GitHub Releases page](https://github.com/rae004/ai-security-digest/releases); this file is
+no longer updated.
+
 ---
 
 ## [1.4.0](https://github.com/rae004/ai-security-digest/compare/v1.3.1...v1.4.0) (2026-09-27)

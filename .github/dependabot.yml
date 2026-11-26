@@ -10,6 +10,14 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    # The PR title becomes the squash commit, and release.yml reads its type.
+    # A bump to a runtime dependency is a `fix`, so it cuts a patch release
+    # and deploys; a dev-only bump is a `chore` and releases nothing. A
+    # grouped PR that mixes both counts as runtime.
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
     groups:
       aws-sdk:
         patterns:
@@ -44,6 +52,10 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # Workflow-only changes never need a release.
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     groups:
       actions:
         patterns:
