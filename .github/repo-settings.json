@@ -3,6 +3,7 @@
     "Lint",
     "Build",
     "Test",
-    "Synth"
+    "Synth",
+    "title / Conventional title"
   ]
 }
