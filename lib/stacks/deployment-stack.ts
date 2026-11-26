@@ -1,6 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 export interface DeploymentStackProps extends cdk.StackProps {
@@ -107,16 +106,12 @@ export class DeploymentStack extends cdk.Stack {
     // cdk-nag: IAM5 fires on the AssumeRole statement because it lists four
     // resource ARNs. They are all specific (no wildcards) and intentionally
     // narrowed to the CDK bootstrap roles, so the finding is acceptable.
-    NagSuppressions.addResourceSuppressions(
-      this.githubDeployRole,
-      [
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'AssumeRole is intentionally scoped to the four CDK bootstrap role ARNs for this account/region. No wildcards on resources.',
-        },
-      ],
-      true,
+    cdk.Validations.of(this.githubDeployRole).acknowledge(
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'AssumeRole is intentionally scoped to the four CDK bootstrap role ARNs for this account/region. No wildcards on resources.',
+      },
     );
 
     // ── Read-only role for PR `cdk diff` checks ────────────────────────────

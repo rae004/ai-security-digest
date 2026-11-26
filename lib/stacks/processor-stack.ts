@@ -5,7 +5,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { BundlingOptions, NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 export interface ProcessorStackProps extends cdk.StackProps {
@@ -89,25 +88,21 @@ export class ProcessorStack extends cdk.Stack {
     });
 
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
-    NagSuppressions.addResourceSuppressions(
-      processorFn,
-      [
-        {
-          id: 'AwsSolutions-IAM4',
-          reason:
-            'AWSLambdaBasicExecutionRole is required for CloudWatch Logs; no broader managed policy is attached.',
-        },
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
-        },
-        {
-          id: 'AwsSolutions-L1',
-          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
-        },
-      ],
-      true,
+    cdk.Validations.of(processorFn).acknowledge(
+      {
+        id: 'AwsSolutions-IAM4',
+        reason:
+          'AWSLambdaBasicExecutionRole is required for CloudWatch Logs; no broader managed policy is attached.',
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
+      },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+      },
     );
   }
 }

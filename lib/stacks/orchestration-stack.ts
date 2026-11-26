@@ -9,7 +9,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 export interface OrchestrationStackProps extends cdk.StackProps {
@@ -289,73 +288,61 @@ export class OrchestrationStack extends cdk.Stack {
     });
 
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
-    NagSuppressions.addResourceSuppressions(
-      filterFn,
-      [
-        {
-          id: 'AwsSolutions-IAM4',
-          reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
-        },
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
-        },
-        {
-          id: 'AwsSolutions-L1',
-          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
-        },
-      ],
-      true,
+    cdk.Validations.of(filterFn).acknowledge(
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'S3 GetObject/PutObject grants require a key-prefix wildcard; access is scoped to specific named buckets.',
+      },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+      },
     );
 
-    NagSuppressions.addResourceSuppressions(
-      notifierFn,
-      [
-        {
-          id: 'AwsSolutions-IAM4',
-          reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
-        },
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'SES identity wildcard is required since the verified sender address is configured post-deployment via SSM.',
-        },
-        {
-          id: 'AwsSolutions-L1',
-          reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
-        },
-      ],
-      true,
+    cdk.Validations.of(notifierFn).acknowledge(
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'AWSLambdaBasicExecutionRole is required for CloudWatch Logs.',
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'SES identity wildcard is required since the verified sender address is configured post-deployment via SSM.',
+      },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'nodejs22.x is the latest stable Node.js Lambda runtime available.',
+      },
     );
 
-    NagSuppressions.addResourceSuppressions(
-      stateMachine,
-      [
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'Step Functions execution role uses lambda:InvokeFunction on specific function ARNs; the :* suffix for qualified versions is a CDK default.',
-        },
-        {
-          id: 'AwsSolutions-SF1',
-          reason:
-            'Step Functions logs ERROR-level events; ALL-level logging is not required for this operational pipeline and would significantly increase CloudWatch costs.',
-        },
-        {
-          id: 'AwsSolutions-SF2',
-          reason: 'X-Ray tracing is enabled on this state machine (tracingEnabled: true).',
-        },
-      ],
-      true,
+    cdk.Validations.of(stateMachine).acknowledge(
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'Step Functions execution role uses lambda:InvokeFunction on specific function ARNs; the :* suffix for qualified versions is a CDK default.',
+      },
+      {
+        id: 'AwsSolutions-SF1',
+        reason:
+          'Step Functions logs ERROR-level events; ALL-level logging is not required for this operational pipeline and would significantly increase CloudWatch costs.',
+      },
+      {
+        id: 'AwsSolutions-SF2',
+        reason: 'X-Ray tracing is enabled on this state machine (tracingEnabled: true).',
+      },
     );
 
-    NagSuppressions.addResourceSuppressions(sfnLogGroup, [
+    cdk.Validations.of(sfnLogGroup).acknowledge(
       {
         id: 'AwsSolutions-CW3',
         reason:
           'Step Functions execution logs are operational data, not sensitive; KMS encryption is not required for this log group.',
       },
-    ]);
+    );
   }
 }

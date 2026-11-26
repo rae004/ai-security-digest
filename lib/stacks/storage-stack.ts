@@ -1,7 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 export class StorageStack extends cdk.Stack {
@@ -34,13 +33,13 @@ export class StorageStack extends cdk.Stack {
     });
 
     // S1: This IS the access log destination — self-logging is not supported by S3.
-    NagSuppressions.addResourceSuppressions(accessLogsBucket, [
+    cdk.Validations.of(accessLogsBucket).acknowledge(
       {
         id: 'AwsSolutions-S1',
         reason:
           'This bucket is the server access log destination. S3 does not support logging a log-delivery bucket to itself.',
       },
-    ]);
+    );
 
     // ── Config bucket — sources.json lives here ───────────────────────────────
     // Seeded on deploy via BucketDeployment (Phase 2). Retained on stack destroy

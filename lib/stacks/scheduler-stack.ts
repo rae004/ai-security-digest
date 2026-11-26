@@ -3,7 +3,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 import * as schedulerTargets from 'aws-cdk-lib/aws-scheduler-targets';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
-import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
 
 export interface SchedulerStackProps extends cdk.StackProps {
@@ -71,16 +70,12 @@ export class SchedulerStack extends cdk.Stack {
     });
 
     // ── CDK NAG suppressions ───────────────────────────────────────────────────
-    NagSuppressions.addResourceSuppressions(
-      schedulerRole,
-      [
-        {
-          id: 'AwsSolutions-IAM5',
-          reason:
-            'The scheduler role only grants states:StartExecution on the exact state machine ARN; no wildcard resources are used.',
-        },
-      ],
-      true,
+    cdk.Validations.of(schedulerRole).acknowledge(
+      {
+        id: 'AwsSolutions-IAM5',
+        reason:
+          'The scheduler role only grants states:StartExecution on the exact state machine ARN; no wildcard resources are used.',
+      },
     );
   }
 }
