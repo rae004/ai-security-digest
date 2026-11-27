@@ -14,4 +14,4 @@ permissions:
 
 jobs:
   title:
-    uses: rae004/.github/.github/workflows/pr-title.yml@57800fdc8271531a03eb1cf7f7a4b41ca841a896 # v0.2.0
+    uses: rae004/.github/.github/workflows/pr-title.yml@fcb16c0e4708e3ba7e0efcfbe2d173a3507e4a65 # v0.2.1
